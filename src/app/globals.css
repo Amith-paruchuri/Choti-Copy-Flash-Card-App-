@@ -1,0 +1,378 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   Choti Copy — mint · violet · white, on a dark base
+   Flashcards fanned beside a "C". Sleek, digital, calm.
+   Semantic token NAMES are unchanged from the old earthy system
+   (--sage/--highlight/--clay/--ink …) — only their values moved,
+   so every component that referenced a role recolours for free:
+     --sage      → mint     (success · mastered · "Good")
+     --highlight → violet    (accent · focus · learning · "Easy")
+     --ink       → violet    (links · interactive text)
+     --clay      → rose      (error · struggling · "Again")
+   ============================================================ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Choti Copy semantic tokens */
+  --color-paper: var(--paper);
+  --color-rule: var(--border);
+  --color-ink: var(--ink);
+  --color-ink-tint: var(--ink-tint);
+  --color-highlight: var(--highlight);
+  --color-highlight-tint: var(--highlight-tint);
+  --color-sage: var(--sage);
+  --color-sage-tint: var(--sage-tint);
+  --color-clay: var(--clay);
+  --color-clay-tint: var(--clay-tint);
+  --color-mint: var(--sage);
+  --color-violet: var(--highlight);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), "Trebuchet MS", var(--font-plex-sans),
+    sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", monospace;
+  --font-heading: var(--font-bricolage), var(--font-plex-sans), sans-serif;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.85);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.35);
+  --radius-2xl: calc(var(--radius) * 1.7);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ── LIGHT ──────────────────────────────────────────────────── */
+:root {
+  --radius: 0.75rem; /* 12px base → controls; cards use radius-xl ≈ 16px */
+  --bottom-nav-h: 3.75rem;
+
+  --background: #f6f7f9;
+  --paper: #f6f7f9;
+  --foreground: #171a20;
+
+  --card: #ffffff;
+  --card-foreground: #171a20;
+  --popover: #ffffff;
+  --popover-foreground: #171a20;
+
+  --primary: #12b18f; /* mint, deepened for contrast on white */
+  --primary-foreground: #ffffff;
+  --ink: #5b49e0; /* violet — links / interactive text */
+  --ink-tint: #ecebfd;
+
+  --secondary: #eef0f4;
+  --secondary-foreground: #171a20;
+  --muted: #eef0f4;
+  --muted-foreground: #5c6472;
+  --accent: #e9ecf2;
+  --accent-foreground: #171a20;
+
+  --highlight: #6a58e8; /* violet accent */
+  --highlight-tint: #ecebfd;
+  --sage: #12b18f; /* mint = success / mastered */
+  --sage-tint: #dbf4ed;
+  --clay: #e0455f; /* rose = error / struggling */
+  --clay-tint: #fce6ea;
+  --destructive: #e0455f;
+
+  --border: #e4e7ec;
+  --input: #d9dde3;
+  --ring: #6a58e8;
+
+  --chart-1: #12b18f; /* mint */
+  --chart-2: #6a58e8; /* violet */
+  --chart-3: #e0455f; /* rose */
+  --chart-4: #3d8bff; /* sky */
+  --chart-5: #d99a3c; /* amber */
+
+  --sidebar: #eef0f4;
+  --sidebar-foreground: #171a20;
+  --sidebar-primary: #12b18f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9ecf2;
+  --sidebar-accent-foreground: #171a20;
+  --sidebar-border: #e4e7ec;
+  --sidebar-ring: #6a58e8;
+}
+
+/* ── DARK (canonical) ───────────────────────────────────────── */
+.dark {
+  --background: #14161b;
+  --paper: #14161b;
+  --foreground: #f2f4f8;
+
+  --card: #1c1f26;
+  --card-foreground: #f2f4f8;
+  --popover: #1c1f26;
+  --popover-foreground: #f2f4f8;
+
+  --primary: #3ddbb4; /* mint */
+  --primary-foreground: #0b1512;
+  --ink: #a99bf9; /* bright violet for links on dark */
+  --ink-tint: #221f39;
+
+  --secondary: #20242c;
+  --secondary-foreground: #f2f4f8;
+  --muted: #20242c;
+  --muted-foreground: #99a1b0;
+  --accent: #272c36;
+  --accent-foreground: #f2f4f8;
+
+  --highlight: #7c6cf3; /* violet accent */
+  --highlight-tint: #221f39;
+  --sage: #3ddbb4; /* mint */
+  --sage-tint: #123029;
+  --clay: #f2647e; /* rose */
+  --clay-tint: #33202a;
+  --destructive: #f2647e;
+
+  --border: #2a2f3a;
+  --input: #363d49;
+  --ring: #7c6cf3;
+
+  --chart-1: #3ddbb4;
+  --chart-2: #7c6cf3;
+  --chart-3: #f2647e;
+  --chart-4: #5aa9ff;
+  --chart-5: #e0a23e;
+
+  --sidebar: #1c1f26;
+  --sidebar-foreground: #f2f4f8;
+  --sidebar-primary: #3ddbb4;
+  --sidebar-primary-foreground: #0b1512;
+  --sidebar-accent: #272c36;
+  --sidebar-accent-foreground: #f2f4f8;
+  --sidebar-border: #2a2f3a;
+  --sidebar-ring: #7c6cf3;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-tight;
+    text-wrap: balance;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--highlight) 28%, transparent);
+    color: var(--foreground);
+  }
+}
+
+/* Emphasis mark — a faint violet wash behind a key phrase (was a turmeric
+   highlighter; same mechanic, digital colour). */
+.mark-term {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--highlight) 22%, transparent),
+    color-mix(in srgb, var(--highlight) 22%, transparent)
+  );
+  background-repeat: no-repeat;
+  background-position: 0 88%;
+  background-size: 100% 42%;
+  padding: 0 0.08em;
+  border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Corner tab — a small folded/angled corner marking a card "for review".
+   Kept from the notebook system but flattened for the digital look: no hard
+   drop-shadow, just a clean coloured triangle + a light sheen.
+   Host must be positioned (`relative`) or already-positioned. */
+.dogear {
+  overflow: hidden;
+}
+.dogear::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-style: solid;
+  border-width: 0 16px 16px 0;
+  border-color: transparent var(--dogear-color, var(--border)) transparent
+    transparent;
+}
+.dogear::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(225deg, rgba(255, 255, 255, 0.16), transparent 60%);
+  pointer-events: none;
+}
+
+/* Soft brand glow — used on the mark and for focus emphasis. */
+.glow-mint {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--sage) 45%, transparent),
+    0 8px 30px -10px color-mix(in srgb, var(--sage) 55%, transparent);
+}
+.glow-violet {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--highlight) 45%, transparent),
+    0 8px 30px -10px color-mix(in srgb, var(--highlight) 55%, transparent);
+}
+
+/* hide scrollbars on horizontal strips */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* recall strip — staggered slide-up on shuffle (cards stay visible at rest) */
+@keyframes card-in {
+  from {
+    transform: translateY(7px);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card-in {
+    animation: card-in 0.26s ease both;
+    animation-delay: calc(var(--i, 0) * 40ms);
+  }
+}
+
+/* deck viewer — cross-fade the card face on flip, slide between cards */
+@keyframes face-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes deck-slide {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--dir, 1) * 22px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .card-face {
+    animation: face-in 0.18s ease both;
+  }
+  .deck-slide {
+    animation: deck-slide 0.22s ease both;
+  }
+}
+
+/* ── Brand intro animation (first open only) ─────────────────── */
+@keyframes brand-card-in {
+  0% {
+    opacity: 0;
+    transform: translate(var(--from-x, 0), var(--from-y, 0))
+      rotate(var(--from-rot, 0deg)) scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(
+        calc(var(--from-x, 0) * 0.12),
+        calc(var(--from-y, 0) * 0.12)
+      )
+      rotate(calc(var(--from-rot, 0deg) * 0.2)) scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(var(--to-rot, 0deg)) scale(1);
+  }
+}
+@keyframes brand-c-reveal {
+  from {
+    opacity: 0;
+    stroke-dashoffset: var(--c-len, 300);
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes brand-ring-pulse {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  35% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+@keyframes brand-fade-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* One-shot illustrative animations (FSRS explainer) — reduced motion shows the
+ * resting state instantly rather than skipping straight to it via JS. */
+@media (prefers-reduced-motion: reduce) {
+  .fsrs-anim {
+    animation: none !important;
+  }
+}
