@@ -142,6 +142,14 @@ export function CheckoutButton({
       }
       if (!window.Razorpay) return;
 
+      // Razorpay's checkout overlay is positioned relative to the viewport,
+      // but if the billing page was scrolled down when this fires (likely —
+      // the Pro card sits below the fold on short/mobile viewports), the
+      // browser can visually settle the overlay against whatever was
+      // scrolled into view rather than the true top, making it look like
+      // it opened "far down the page". Resetting scroll first avoids that.
+      window.scrollTo({ top: 0, behavior: "instant" });
+
       const rzp = new window.Razorpay({
         key: res.data.keyId,
         subscription_id: res.data.subscriptionId,

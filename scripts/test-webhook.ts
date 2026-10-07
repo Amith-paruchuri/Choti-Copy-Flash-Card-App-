@@ -153,7 +153,10 @@ async function main() {
   const subId = `sub_test_${crypto.randomBytes(6).toString("hex")}`;
   console.log(`Using test user ${userId}, synthetic subscription ${subId}\n`);
 
-  const cleanupEventIds: string[] = [];
+  // Timestamp-based, not user_id-based: some scenarios deliberately post
+  // events with no notes.user_id at all (to test that no-crash/no-mutation
+  // path), which a user_id filter would silently miss at cleanup time.
+  const startedAt = new Date().toISOString();
 
   try {
     console.log("1. Bad signature is rejected with 400");
@@ -292,14 +295,13 @@ async function main() {
     const { data: toDelete } = await admin
       .from("subscription_events")
       .select("id")
-      .eq("user_id", userId);
+      .gte("received_at", startedAt);
     if (toDelete?.length) {
       await admin
         .from("subscription_events")
         .delete()
         .in("id", toDelete.map((r) => r.id));
     }
-    void cleanupEventIds;
     console.log(`Restored profile ${userId} and removed ${toDelete?.length ?? 0} synthetic subscription_events rows.`);
   }
 
