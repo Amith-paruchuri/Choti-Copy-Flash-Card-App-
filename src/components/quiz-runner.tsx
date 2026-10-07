@@ -329,9 +329,9 @@ export function QuizRunner({
                 disabled={revealed}
                 onClick={() => answer(option)}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition",
+                  "flex touch-manipulation items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition [-webkit-tap-highlight-color:transparent]",
                   !revealed &&
-                    "border-rule hover:border-foreground/30 hover:bg-secondary",
+                    "border-rule hover:border-foreground/30 hover:bg-secondary active:scale-[0.98] active:bg-secondary",
                   revealed && isAnswer && "border-sage/40 bg-sage-tint text-sage",
                   revealed &&
                     isPicked &&

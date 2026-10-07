@@ -130,7 +130,7 @@ export function DeckCard({
           <button
             type="button"
             onClick={onFlip}
-            className="card-face focus-visible:ring-ring -m-5 flex flex-1 flex-col rounded-xl p-5 text-left"
+            className="card-face focus-visible:ring-ring active:bg-ink-tint/60 -m-5 flex flex-1 touch-manipulation flex-col rounded-xl p-5 text-left transition-colors [-webkit-tap-highlight-color:transparent]"
             aria-label="Reveal answer"
           >
             <span className="flex flex-1 flex-col justify-center gap-2 py-2">

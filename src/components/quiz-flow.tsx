@@ -56,7 +56,7 @@ function ChoiceCard({
       onClick={onClick}
       aria-pressed={selected}
       className={cn(
-        "dogear relative flex flex-col gap-2 rounded-xl border p-3.5 text-left transition",
+        "dogear relative flex touch-manipulation flex-col gap-2 rounded-xl border p-3.5 text-left transition active:scale-[0.98] [-webkit-tap-highlight-color:transparent]",
         selected
           ? "border-primary bg-sage-tint shadow-[0_1px_2px_rgba(42,38,34,0.06),0_12px_28px_-14px_rgba(42,38,34,0.35)]"
           : "border-rule bg-card hover:border-foreground/25 hover:shadow-sm",

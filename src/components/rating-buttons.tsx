@@ -47,7 +47,7 @@ export function RatingButtons({
           disabled={disabled}
           onClick={() => onRate(r.value)}
           className={cn(
-            "flex flex-col items-center gap-0.5 rounded-lg border px-1 py-2 transition hover:brightness-[0.97] active:scale-[0.98] disabled:opacity-60",
+            "flex touch-manipulation flex-col items-center gap-0.5 rounded-lg border px-1 py-2 transition hover:brightness-[0.97] active:scale-[0.98] active:brightness-95 disabled:opacity-60 [-webkit-tap-highlight-color:transparent]",
             r.className,
           )}
         >

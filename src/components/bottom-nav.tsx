@@ -53,7 +53,7 @@ export function BottomNav() {
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex flex-col items-center gap-1 px-1 pt-2.5 pb-2 text-[11px] font-medium tracking-tight transition-colors",
+                  "relative flex touch-manipulation flex-col items-center gap-1 px-1 pt-2.5 pb-2 text-[11px] font-medium tracking-tight transition-colors active:scale-95 active:opacity-70 [-webkit-tap-highlight-color:transparent]",
                   active
                     ? "text-ink"
                     : "text-muted-foreground hover:text-foreground",
