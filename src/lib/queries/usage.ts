@@ -1,5 +1,6 @@
 import "server-only";
 
+import { effectiveTier } from "@/lib/billing/tier";
 import { createClient } from "@/lib/supabase/server";
 import { capsForTier } from "@/lib/usage/caps";
 import type { SubscriptionTier } from "@/types/database";
@@ -24,7 +25,10 @@ export async function getUsageSummary(): Promise<UsageSummary> {
 
   const [{ data: profile }, { data: usage }, { data: mediaRows }] =
     await Promise.all([
-      supabase.from("profiles").select("subscription_tier").maybeSingle(),
+      supabase
+        .from("profiles")
+        .select("subscription_tier, trial_ends_at")
+        .maybeSingle(),
       supabase
         .from("ai_usage_daily")
         .select("calls")
@@ -33,7 +37,10 @@ export async function getUsageSummary(): Promise<UsageSummary> {
       supabase.from("media_objects").select("bytes"),
     ]);
 
-  const tier = profile?.subscription_tier ?? "free";
+  const tier = effectiveTier({
+    subscriptionTier: profile?.subscription_tier ?? "free",
+    trialEndsAt: profile?.trial_ends_at ?? null,
+  });
   const caps = capsForTier(tier);
   const storageBytes = (mediaRows ?? []).reduce(
     (sum, r) => sum + (r.bytes ?? 0),

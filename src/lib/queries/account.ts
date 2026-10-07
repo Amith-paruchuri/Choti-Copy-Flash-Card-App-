@@ -1,5 +1,6 @@
 import "server-only";
 
+import { effectiveTier } from "@/lib/billing/tier";
 import { createClient } from "@/lib/supabase/server";
 import type { SubscriptionTier } from "@/types/database";
 
@@ -20,17 +21,27 @@ export interface BillingProfile {
   trialEndsAt: string | null;
 }
 
-/** The caller's subscription state — defaults to free if no row yet. */
+/**
+ * The caller's subscription state — defaults to free if no row yet. `tier`
+ * is the EFFECTIVE tier (trial-aware, see `effectiveTier()`), not the raw
+ * stored `subscription_tier` — callers should never need to know about the
+ * trial separately unless they want to render "ends on X" copy, which is
+ * what `trialEndsAt` is for.
+ */
 export async function getBillingProfile(): Promise<BillingProfile> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
     .select("subscription_tier, current_period_end, trial_ends_at")
     .maybeSingle();
+  const trialEndsAt = data?.trial_ends_at ?? null;
   return {
-    tier: data?.subscription_tier ?? "free",
+    tier: effectiveTier({
+      subscriptionTier: data?.subscription_tier ?? "free",
+      trialEndsAt,
+    }),
     currentPeriodEnd: data?.current_period_end ?? null,
-    trialEndsAt: data?.trial_ends_at ?? null,
+    trialEndsAt,
   };
 }
 
