@@ -17,11 +17,13 @@ import {
 } from "lucide-react";
 
 import { ProfilePanel } from "@/components/profile-panel";
+import { StartTrialButton } from "@/components/start-trial-button";
 import { StudyPacingForm } from "@/components/study-pacing-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UsageMeter, fmtBytes } from "@/components/usage-meter";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/lib/auth/actions";
+import { canStartTrial, trialDaysRemaining } from "@/lib/billing/tier";
 import { SUPPORT_EMAIL, supportMailto } from "@/lib/contact";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountSummary, getBillingProfile } from "@/lib/queries/account";
@@ -95,6 +97,9 @@ export default async function AccountPage() {
   const since = memberSince(user.created_at);
   const tier = billing.tier;
   const proish = tier === "pro" || tier === "trialing";
+  const canTrial = canStartTrial(billing);
+  const daysLeft =
+    tier === "trialing" ? trialDaysRemaining(billing.trialEndsAt) : null;
 
   return (
     <main className="mx-auto w-full max-w-lg space-y-6 px-4 py-8">
@@ -178,18 +183,25 @@ export default async function AccountPage() {
               {TIER_LABEL[tier] ?? "Free"}
             </span>
             <span className="text-muted-foreground text-sm">
-              {tier === "free"
-                ? "Everything in Choti Copy, no limits yet."
-                : billing.currentPeriodEnd
-                  ? `Renews ${new Date(billing.currentPeriodEnd).toLocaleDateString()}`
-                  : "Active"}
+              {tier === "trialing" && billing.trialEndsAt
+                ? `Trial ends ${new Date(billing.trialEndsAt).toLocaleDateString()}${
+                    daysLeft != null ? ` · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : ""
+                  }`
+                : tier === "free"
+                  ? "Everything in Choti Copy, no limits yet."
+                  : billing.currentPeriodEnd
+                    ? `Renews ${new Date(billing.currentPeriodEnd).toLocaleDateString()}`
+                    : "Active"}
             </span>
           </div>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/billing">
-              {tier === "free" ? "See plans" : "Manage plan"}
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {canTrial && <StartTrialButton />}
+            <Button asChild size="sm" variant="outline">
+              <Link href="/billing">
+                {tier === "free" ? "See plans" : "Manage plan"}
+              </Link>
+            </Button>
+          </div>
         </div>
       </SectionCard>
 

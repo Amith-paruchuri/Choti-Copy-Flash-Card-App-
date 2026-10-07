@@ -3,7 +3,9 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 
 import { CheckoutStubButton } from "@/components/checkout-stub-button";
+import { StartTrialButton } from "@/components/start-trial-button";
 import { Button } from "@/components/ui/button";
+import { canStartTrial } from "@/lib/billing/tier";
 import { getBillingProfile } from "@/lib/queries/account";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +28,7 @@ const PRO = [
 export default async function BillingPage() {
   const billing = await getBillingProfile();
   const onFree = billing.tier === "free";
+  const canTrial = canStartTrial(billing);
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-6 px-4 py-8">
@@ -34,8 +37,9 @@ export default async function BillingPage() {
           Plans
         </h1>
         <p className="text-muted-foreground text-sm">
-          Paid plans aren&rsquo;t live yet — you&rsquo;re on Free with no limits.
-          Pricing, currency, and trial length are still being finalised.
+          Paid checkout isn&rsquo;t live yet — you&rsquo;re on Free with no
+          limits in the meantime. Everyone gets one 15-day Pro trial, no card
+          needed, whenever they want to start it.
         </p>
       </header>
 
@@ -84,6 +88,7 @@ export default async function BillingPage() {
               </li>
             ))}
           </ul>
+          {canTrial && <StartTrialButton className="w-full" />}
           <CheckoutStubButton />
         </div>
       </div>

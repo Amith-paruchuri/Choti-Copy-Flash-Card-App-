@@ -453,6 +453,11 @@ export interface Database {
         Args: Record<string, never>;
         Returns: number;
       };
+      /** Null return means not eligible — trial already used, or already pro. */
+      start_trial: {
+        Args: Record<string, never>;
+        Returns: string | null;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

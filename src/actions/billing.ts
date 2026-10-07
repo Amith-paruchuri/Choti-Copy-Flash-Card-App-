@@ -1,8 +1,35 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { requireUser } from "@/lib/auth/session";
 import { serverEnv } from "@/lib/env";
 import { actionError, type ActionResult } from "@/actions/types";
+
+/**
+ * Starts the caller's one 15-day no-card trial. Delegates the eligibility
+ * check to `start_trial()` (migration 0022) — a single atomic DB update, so
+ * there's no way to call this twice and extend/reset a trial already used.
+ * A null return means the account already has a trial on record (active or
+ * lapsed) or is already on a real paid subscription.
+ */
+export async function startTrial(): Promise<
+  ActionResult<{ trialEndsAt: string }>
+> {
+  const { supabase } = await requireUser();
+
+  const { data, error } = await supabase.rpc("start_trial");
+  if (error) {
+    return actionError("Couldn't start your trial — try again in a moment.");
+  }
+  if (!data) {
+    return actionError("You've already used your trial, or you're on Pro.");
+  }
+
+  revalidatePath("/account");
+  revalidatePath("/billing");
+  return { ok: true, data: { trialEndsAt: data } };
+}
 
 /**
  * Groundwork only — payments are not live. When a provider + keys are
