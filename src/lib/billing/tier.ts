@@ -3,21 +3,33 @@ import type { SubscriptionTier } from "@/types/database";
 export interface TierState {
   subscriptionTier: SubscriptionTier;
   trialEndsAt: string | null;
+  /** End of the current paid period — what a 'canceled' subscription still runs out. */
+  currentPeriodEnd: string | null;
 }
 
 /**
  * The tier that actually governs access right now, computed live rather than
- * stored — a trial lapsing needs no cron job to "end" it, and nothing in
- * `profiles` is ever rewritten just because time passed. An active paid
- * subscription always wins; otherwise an unexpired trial reads as
- * `trialing`; everything else (an expired trial, or a lapsed/past-due
- * subscription past any trial window) falls back to `free`.
+ * stored — neither a trial lapsing nor a cancellation taking effect needs a
+ * cron job to "end" it, and nothing in `profiles` is ever rewritten just
+ * because time passed. In order: an active paid subscription ('pro') always
+ * wins; a 'canceled' subscription still reads as 'pro' until its current
+ * paid period actually runs out (cancelling stops the NEXT charge, not the
+ * period already paid for); otherwise an unexpired trial reads as
+ * `trialing`; everything else (an expired trial, a lapsed cancellation, or
+ * 'past_due') falls back to `free`.
  */
 export function effectiveTier(
   state: TierState,
   now: Date = new Date(),
 ): SubscriptionTier {
   if (state.subscriptionTier === "pro") return "pro";
+  if (
+    state.subscriptionTier === "canceled" &&
+    state.currentPeriodEnd &&
+    new Date(state.currentPeriodEnd).getTime() > now.getTime()
+  ) {
+    return "pro";
+  }
   if (
     state.trialEndsAt &&
     new Date(state.trialEndsAt).getTime() > now.getTime()
@@ -32,10 +44,13 @@ export function effectiveTier(
  * eligibility check inside `start_trial()` (migration 0022): a trial is
  * opt-in and one-shot, so this is true only before `trial_ends_at` has ever
  * been set (not "while active" — once used, used, even after it lapses) and
- * only while not already on a real paid subscription. Takes the EFFECTIVE
- * tier (as returned by `effectiveTier`), which is safe here because it's
- * `'pro'` if and only if the raw stored tier is `'pro'` — same condition the
- * database function checks.
+ * only while not currently getting Pro access from a subscription — active,
+ * or canceled but still inside its paid period (effectiveTier covers both as
+ * `'pro'`; the raw stored tier the database function checks is only ever
+ * literally `'pro'`, but a canceled-with-time-left account reaching for a
+ * trial on top of access it's already paying for is exactly as wrong, so
+ * gating on the effective tier here is a strictly safer check, not a looser
+ * one).
  */
 export function canStartTrial(billing: {
   tier: SubscriptionTier;

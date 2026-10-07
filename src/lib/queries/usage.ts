@@ -27,7 +27,7 @@ export async function getUsageSummary(): Promise<UsageSummary> {
     await Promise.all([
       supabase
         .from("profiles")
-        .select("subscription_tier, trial_ends_at")
+        .select("subscription_tier, trial_ends_at, current_period_end")
         .maybeSingle(),
       supabase
         .from("ai_usage_daily")
@@ -40,6 +40,7 @@ export async function getUsageSummary(): Promise<UsageSummary> {
   const tier = effectiveTier({
     subscriptionTier: profile?.subscription_tier ?? "free",
     trialEndsAt: profile?.trial_ends_at ?? null,
+    currentPeriodEnd: profile?.current_period_end ?? null,
   });
   const caps = capsForTier(tier);
   const storageBytes = (mediaRows ?? []).reduce(

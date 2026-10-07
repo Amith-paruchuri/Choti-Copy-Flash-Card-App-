@@ -1,47 +1,174 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { verifyWebhookSignature } from "@/lib/billing/razorpay";
 import { serverEnv } from "@/lib/env";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+type AdminClient = ReturnType<typeof createAdminClient>;
 
 /**
- * Subscription webhook — Stripe or Razorpay. Structural stub: it verifies the
- * shape of the flow but does NOT process real events yet. When going live:
- *
- *  1. Verify the signature:
- *     - stripe: `stripe.webhooks.constructEvent(rawBody, sig, serverEnv.stripeWebhookSecret)`
- *     - razorpay: HMAC-SHA256(rawBody, serverEnv.razorpayWebhookSecret) === header
- *  2. Idempotency: insert into `subscription_events (provider, event_id, ...)`;
- *     if the unique constraint trips, this event was already handled — return 200.
- *  3. On `customer.subscription.{created,updated,deleted}` /
- *     `subscription.{activated,charged,cancelled}`: upsert `profiles` for the
- *     mapped user_id with subscription_tier / subscription_id / customer_id /
- *     current_period_end / trial_ends_at.
- *  4. All DB writes here use a SERVICE-ROLE Supabase client (bypasses RLS),
- *     since there is no user session on a webhook request.
- *
- * Requires `SUPABASE_SERVICE_ROLE_KEY` (already reserved in env) to be set.
+ * Loosely-typed on purpose — this is attacker-reachable (modulo signature
+ * verification) external input, not a trusted shape. Every field is read
+ * with optional chaining; nothing here is assumed present.
  */
+interface RazorpaySubscriptionEntity {
+  id?: string;
+  status?: string;
+  current_end?: number; // unix seconds
+  notes?: Record<string, unknown>;
+}
+interface RazorpayPaymentEntity {
+  id?: string;
+  notes?: Record<string, unknown>;
+}
+interface RazorpayWebhookBody {
+  event?: string;
+  created_at?: number;
+  payload?: {
+    subscription?: { entity?: RazorpaySubscriptionEntity };
+    payment?: { entity?: RazorpayPaymentEntity };
+  };
+}
+
+const PRO_EVENTS = new Set(["subscription.activated", "subscription.charged"]);
+const PAST_DUE_EVENTS = new Set(["subscription.pending", "subscription.halted"]);
+const CANCEL_EVENTS = new Set(["subscription.cancelled", "subscription.completed"]);
+// subscription.authenticated is intentionally unmapped — it can fire for an
+// initial mandate authorization before the first real charge is confirmed,
+// so treating it as "pro" would risk granting access before a payment
+// actually succeeded. It's still recorded below for audit/idempotency.
+
+const toIso = (unixSeconds: number | undefined): string | null =>
+  typeof unixSeconds === "number" ? new Date(unixSeconds * 1000).toISOString() : null;
+
+/** Resolves the target user: notes.user_id first, else by stored subscription_id. */
+async function resolveUserId(
+  admin: AdminClient,
+  notesUserId: unknown,
+  subscriptionId: string | undefined,
+): Promise<string | null> {
+  if (typeof notesUserId === "string" && notesUserId) return notesUserId;
+  if (!subscriptionId) return null;
+  const { data } = await admin
+    .from("profiles")
+    .select("user_id")
+    .eq("subscription_id", subscriptionId)
+    .maybeSingle();
+  return data?.user_id ?? null;
+}
+
+async function applyTierTransition(
+  admin: AdminClient,
+  event: string,
+  sub: RazorpaySubscriptionEntity | undefined,
+  payment: RazorpayPaymentEntity | undefined,
+): Promise<void> {
+  if (event === "payment.failed") {
+    // Generic, non-subscription-scoped event — only act on it when the
+    // payment entity happens to carry our own notes (not guaranteed).
+    const userId = await resolveUserId(admin, payment?.notes?.user_id, undefined);
+    if (!userId) return;
+    await admin
+      .from("profiles")
+      .update({ subscription_tier: "past_due" })
+      .eq("user_id", userId);
+    return;
+  }
+
+  if (!sub?.id) return; // nothing to act on without a subscription entity
+  const userId = await resolveUserId(admin, sub.notes?.user_id, sub.id);
+  if (!userId) return;
+
+  if (PRO_EVENTS.has(event)) {
+    await admin
+      .from("profiles")
+      .update({
+        subscription_tier: "pro",
+        subscription_id: sub.id,
+        current_period_end: toIso(sub.current_end),
+      })
+      .eq("user_id", userId);
+  } else if (PAST_DUE_EVENTS.has(event)) {
+    await admin
+      .from("profiles")
+      .update({ subscription_tier: "past_due" })
+      .eq("user_id", userId);
+  } else if (CANCEL_EVENTS.has(event)) {
+    // Keeps current_period_end as-is (or updates it if Razorpay sent a
+    // newer one) — effectiveTier() grants 'pro' through that date even
+    // though the stored tier flips to 'canceled' right away.
+    await admin
+      .from("profiles")
+      .update({
+        subscription_tier: "canceled",
+        ...(sub.current_end ? { current_period_end: toIso(sub.current_end) } : {}),
+      })
+      .eq("user_id", userId);
+  }
+  // subscription.authenticated and anything else: recorded, no tier change.
+}
+
 export async function POST(request: NextRequest) {
-  const provider = serverEnv.billingProvider;
-  if (!provider) {
-    return NextResponse.json(
-      { error: "Billing is not enabled." },
-      { status: 503 },
-    );
+  if (serverEnv.billingProvider !== "razorpay") {
+    return NextResponse.json({ error: "Billing is not enabled." }, { status: 503 });
   }
 
-  const signature =
-    request.headers.get("stripe-signature") ??
-    request.headers.get("x-razorpay-signature");
+  const signature = request.headers.get("x-razorpay-signature");
   if (!signature) {
-    return NextResponse.json(
-      { error: "Missing signature header." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Missing signature header." }, { status: 400 });
   }
 
-  // Real handling is intentionally not implemented until keys + pricing land.
-  return NextResponse.json(
-    { received: true, handled: false, note: "Webhook stub — not processing events yet." },
-    { status: 202 },
-  );
+  const rawBody = await request.text();
+  const secret = serverEnv.razorpayWebhookSecret;
+  if (!secret || !verifyWebhookSignature(rawBody, signature, secret)) {
+    return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
+  }
+
+  let body: RazorpayWebhookBody;
+  try {
+    body = JSON.parse(rawBody) as RazorpayWebhookBody;
+  } catch {
+    return NextResponse.json({ error: "Malformed JSON body." }, { status: 400 });
+  }
+
+  const event = body.event;
+  if (typeof event !== "string" || !event) {
+    return NextResponse.json({ error: "Missing event type." }, { status: 400 });
+  }
+
+  const sub = body.payload?.subscription?.entity;
+  const payment = body.payload?.payment?.entity;
+
+  // Razorpay doesn't hand us one root-level unique delivery id, so derive a
+  // stable one ourselves: a payment id is unique per charge attempt and
+  // disambiguates repeated events on the same subscription (e.g. multiple
+  // `charged` events across billing cycles); without one, fall back to
+  // subscription id + event + timestamp.
+  const eventId = payment?.id
+    ? `${event}:${payment.id}`
+    : `${event}:${sub?.id ?? "unknown"}:${body.created_at ?? ""}`;
+
+  const admin = createAdminClient();
+  const notesUserId = sub?.notes?.user_id ?? payment?.notes?.user_id;
+
+  const { error: insertError } = await admin.from("subscription_events").insert({
+    provider: "razorpay",
+    event_id: eventId,
+    event_type: event,
+    user_id: typeof notesUserId === "string" ? notesUserId : null,
+    payload: body,
+  });
+
+  if (insertError) {
+    if (insertError.code === "23505") {
+      // Already processed this exact event — idempotent no-op, still 200
+      // so Razorpay stops retrying a webhook we've already handled.
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+    return NextResponse.json({ error: "Could not record event." }, { status: 500 });
+  }
+
+  await applyTierTransition(admin, event, sub, payment);
+
+  return NextResponse.json({ received: true });
 }

@@ -9,43 +9,94 @@ const PAST = "2026-09-01T00:00:00Z";
 describe("effectiveTier", () => {
   it("is trialing while trial_ends_at is in the future", () => {
     expect(
-      effectiveTier({ subscriptionTier: "free", trialEndsAt: FUTURE }, NOW),
+      effectiveTier(
+        { subscriptionTier: "free", trialEndsAt: FUTURE, currentPeriodEnd: null },
+        NOW,
+      ),
     ).toBe("trialing");
   });
 
   it("falls back to free once the trial has lapsed", () => {
     expect(
-      effectiveTier({ subscriptionTier: "free", trialEndsAt: PAST }, NOW),
+      effectiveTier(
+        { subscriptionTier: "free", trialEndsAt: PAST, currentPeriodEnd: null },
+        NOW,
+      ),
     ).toBe("free");
   });
 
   it("is free with no trial set at all", () => {
     expect(
-      effectiveTier({ subscriptionTier: "free", trialEndsAt: null }, NOW),
+      effectiveTier(
+        { subscriptionTier: "free", trialEndsAt: null, currentPeriodEnd: null },
+        NOW,
+      ),
     ).toBe("free");
   });
 
   it("an active pro subscription always wins, trial or not", () => {
     expect(
-      effectiveTier({ subscriptionTier: "pro", trialEndsAt: PAST }, NOW),
+      effectiveTier(
+        { subscriptionTier: "pro", trialEndsAt: PAST, currentPeriodEnd: null },
+        NOW,
+      ),
     ).toBe("pro");
     expect(
-      effectiveTier({ subscriptionTier: "pro", trialEndsAt: FUTURE }, NOW),
+      effectiveTier(
+        { subscriptionTier: "pro", trialEndsAt: FUTURE, currentPeriodEnd: null },
+        NOW,
+      ),
     ).toBe("pro");
     expect(
-      effectiveTier({ subscriptionTier: "pro", trialEndsAt: null }, NOW),
+      effectiveTier(
+        { subscriptionTier: "pro", trialEndsAt: null, currentPeriodEnd: null },
+        NOW,
+      ),
     ).toBe("pro");
   });
 
-  it("past_due/canceled fall back to trial check, then free", () => {
+  it("past_due falls back to trial check, then free — no grace period", () => {
     expect(
       effectiveTier(
-        { subscriptionTier: "past_due", trialEndsAt: FUTURE },
+        { subscriptionTier: "past_due", trialEndsAt: FUTURE, currentPeriodEnd: FUTURE },
         NOW,
       ),
     ).toBe("trialing");
     expect(
-      effectiveTier({ subscriptionTier: "canceled", trialEndsAt: PAST }, NOW),
+      effectiveTier(
+        { subscriptionTier: "past_due", trialEndsAt: null, currentPeriodEnd: FUTURE },
+        NOW,
+      ),
+    ).toBe("free");
+  });
+
+  it("canceled still reads as pro until current_period_end passes", () => {
+    expect(
+      effectiveTier(
+        { subscriptionTier: "canceled", trialEndsAt: null, currentPeriodEnd: FUTURE },
+        NOW,
+      ),
+    ).toBe("pro");
+  });
+
+  it("canceled falls back to trial check, then free, once the period has ended", () => {
+    expect(
+      effectiveTier(
+        { subscriptionTier: "canceled", trialEndsAt: null, currentPeriodEnd: PAST },
+        NOW,
+      ),
+    ).toBe("free");
+    expect(
+      effectiveTier(
+        { subscriptionTier: "canceled", trialEndsAt: FUTURE, currentPeriodEnd: PAST },
+        NOW,
+      ),
+    ).toBe("trialing");
+    expect(
+      effectiveTier(
+        { subscriptionTier: "canceled", trialEndsAt: PAST, currentPeriodEnd: null },
+        NOW,
+      ),
     ).toBe("free");
   });
 });
@@ -63,6 +114,11 @@ describe("canStartTrial", () => {
   });
 
   it("is never eligible once on a real paid subscription", () => {
+    expect(canStartTrial({ tier: "pro", trialEndsAt: null })).toBe(false);
+  });
+
+  it("is never eligible during a canceled subscription's remaining paid period", () => {
+    // effectiveTier would have resolved this account's tier to "pro" already
     expect(canStartTrial({ tier: "pro", trialEndsAt: null })).toBe(false);
   });
 });

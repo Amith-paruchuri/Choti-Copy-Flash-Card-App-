@@ -90,6 +90,10 @@ export const serverEnv = {
   get razorpayWebhookSecret() {
     return optional("RAZORPAY_WEBHOOK_SECRET");
   },
+  /** The ₹150/month Plan id — created once via `scripts/create-razorpay-plan.ts`. */
+  get razorpayPlanId() {
+    return optional("RAZORPAY_PLAN_ID");
+  },
 };
 
 /**

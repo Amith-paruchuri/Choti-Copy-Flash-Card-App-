@@ -8,6 +8,13 @@ import type { Database } from "@/types/database";
 const PUBLIC_PATHS = ["/login", "/auth", "/legal", "/about"];
 
 /**
+ * Server-to-server endpoints that never carry a user session — Razorpay's
+ * servers have no Supabase cookies to send. These authenticate themselves
+ * (HMAC signature verification inside the route), not via this proxy.
+ */
+const PUBLIC_API_PATHS = ["/api/billing/webhook"];
+
+/**
  * Runs in `proxy.ts` (Next.js 16's renamed middleware) on every matched
  * request. It refreshes the Supabase auth token, writes the rotated cookies
  * onto the response, and redirects unauthenticated users to `/login`.
@@ -42,9 +49,9 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+  const isPublic =
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
+    PUBLIC_API_PATHS.includes(pathname);
 
   if (!user) {
     if (isPublic) return response;

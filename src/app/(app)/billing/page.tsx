@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Check } from "lucide-react";
 
-import { CheckoutStubButton } from "@/components/checkout-stub-button";
+import { CancelSubscriptionButton } from "@/components/cancel-subscription-button";
+import { CheckoutButton } from "@/components/checkout-button";
 import { StartTrialButton } from "@/components/start-trial-button";
 import { Button } from "@/components/ui/button";
 import { canStartTrial } from "@/lib/billing/tier";
 import { getBillingProfile } from "@/lib/queries/account";
+import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Plans" };
@@ -26,9 +28,21 @@ const PRO = [
 ];
 
 export default async function BillingPage() {
-  const billing = await getBillingProfile();
+  const supabase = await createClient();
+  const [billing, { data: userData }] = await Promise.all([
+    getBillingProfile(),
+    supabase.auth.getUser(),
+  ]);
   const onFree = billing.tier === "free";
   const canTrial = canStartTrial(billing);
+
+  const inGracePeriod =
+    billing.rawTier === "canceled" &&
+    !!billing.currentPeriodEnd &&
+    new Date(billing.currentPeriodEnd).getTime() > new Date().getTime();
+  const periodEndCopy = billing.currentPeriodEnd
+    ? new Date(billing.currentPeriodEnd).toLocaleDateString()
+    : null;
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-6 px-4 py-8">
@@ -37,9 +51,8 @@ export default async function BillingPage() {
           Plans
         </h1>
         <p className="text-muted-foreground text-sm">
-          Paid checkout isn&rsquo;t live yet — you&rsquo;re on Free with no
-          limits in the meantime. Everyone gets one 15-day Pro trial, no card
-          needed, whenever they want to start it.
+          Everyone gets one 15-day Pro trial, no card needed, whenever
+          they want to start it.
         </p>
       </header>
 
@@ -72,13 +85,14 @@ export default async function BillingPage() {
         <div className="border-rule bg-card space-y-3 rounded-xl border p-4">
           <div className="flex items-baseline justify-between">
             <h2 className="font-semibold">Pro</h2>
-            <span className="text-muted-foreground text-[11px]">
-              coming soon
-            </span>
+            {(billing.rawTier === "pro" || inGracePeriod) && (
+              <span className="bg-highlight-tint text-ink rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                Current
+              </span>
+            )}
           </div>
           <p className="font-display text-2xl font-semibold">
-            <span className="text-muted-foreground text-base">₹—</span>
-            <span className="text-muted-foreground ml-1 text-xs">/ month</span>
+            ₹150<span className="text-muted-foreground ml-1 text-xs">/ month</span>
           </p>
           <ul className="space-y-1.5 text-sm">
             {PRO.map((f) => (
@@ -88,13 +102,40 @@ export default async function BillingPage() {
               </li>
             ))}
           </ul>
-          {canTrial && <StartTrialButton className="w-full" />}
-          <CheckoutStubButton />
+
+          {billing.rawTier === "pro" ? (
+            <div className="space-y-2">
+              <p className="text-muted-foreground text-xs">
+                {periodEndCopy ? `Renews ${periodEndCopy}` : "Active"}
+              </p>
+              <CancelSubscriptionButton
+                currentPeriodEnd={billing.currentPeriodEnd}
+              />
+            </div>
+          ) : inGracePeriod ? (
+            <p className="text-muted-foreground text-xs">
+              Canceled — Pro access continues until {periodEndCopy}.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {billing.rawTier === "past_due" && (
+                <p className="text-clay text-xs">
+                  Your last payment didn&rsquo;t go through — Razorpay is
+                  retrying it automatically.
+                </p>
+              )}
+              {canTrial && <StartTrialButton className="w-full" />}
+              <CheckoutButton
+                email={userData.user?.email ?? undefined}
+                tier={billing.tier}
+              />
+            </div>
+          )}
         </div>
       </div>
 
       <p className="text-muted-foreground text-center text-xs">
-        Billing will be handled by Stripe or Razorpay. See the{" "}
+        Billing is handled by Razorpay. See the{" "}
         <Link href="/legal/terms" className="underline">
           Terms
         </Link>{" "}

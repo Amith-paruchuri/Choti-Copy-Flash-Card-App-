@@ -17,31 +17,39 @@ const dayKey = (d: Date) =>
 
 export interface BillingProfile {
   tier: SubscriptionTier;
+  /** The raw stored tier — distinguishes "actively pro" from "canceled, still in its paid period" (both read as `tier: 'pro'`). */
+  rawTier: SubscriptionTier;
   currentPeriodEnd: string | null;
   trialEndsAt: string | null;
+  subscriptionId: string | null;
 }
 
 /**
  * The caller's subscription state — defaults to free if no row yet. `tier`
- * is the EFFECTIVE tier (trial-aware, see `effectiveTier()`), not the raw
- * stored `subscription_tier` — callers should never need to know about the
- * trial separately unless they want to render "ends on X" copy, which is
- * what `trialEndsAt` is for.
+ * is the EFFECTIVE tier (trial- and cancellation-aware, see
+ * `effectiveTier()`), not the raw stored `subscription_tier` — callers
+ * should never need `rawTier` unless they're deciding whether to show a
+ * "Cancel subscription" control (only for an active, non-canceled sub).
  */
 export async function getBillingProfile(): Promise<BillingProfile> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
-    .select("subscription_tier, current_period_end, trial_ends_at")
+    .select("subscription_tier, current_period_end, trial_ends_at, subscription_id")
     .maybeSingle();
   const trialEndsAt = data?.trial_ends_at ?? null;
+  const currentPeriodEnd = data?.current_period_end ?? null;
+  const rawTier = data?.subscription_tier ?? "free";
   return {
     tier: effectiveTier({
-      subscriptionTier: data?.subscription_tier ?? "free",
+      subscriptionTier: rawTier,
       trialEndsAt,
+      currentPeriodEnd,
     }),
-    currentPeriodEnd: data?.current_period_end ?? null,
+    rawTier,
+    currentPeriodEnd,
     trialEndsAt,
+    subscriptionId: data?.subscription_id ?? null,
   };
 }
 
