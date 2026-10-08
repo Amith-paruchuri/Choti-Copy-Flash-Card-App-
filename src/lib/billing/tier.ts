@@ -74,6 +74,22 @@ export function trialDaysRemaining(
 }
 
 /**
+ * Whether a verified Checkout.js callback should grant Pro — true unless
+ * the account is already 'pro'. Mirrors the `.neq("subscription_tier",
+ * "pro")` filter `verifyCheckoutCallback()` puts on its own conditional
+ * UPDATE: this function decides whether to even attempt the write (so a
+ * second callback, or one that loses a race with the webhook, is a clean
+ * no-op), while the DB-level filter is the actual race-safety net against
+ * the webhook landing between this check and that write. If the rule for
+ * "already has Pro access" ever changes, both places need updating together.
+ */
+export function shouldGrantProOnVerifiedCheckout(
+  currentTier: SubscriptionTier,
+): boolean {
+  return currentTier !== "pro";
+}
+
+/**
  * "8 Nov 2026" — day, short month NAME, year. Deliberately not
  * `toLocaleDateString()` with no options: that renders as e.g. "11/8/2026"
  * in en-US and "8/11/2026" in en-GB, the exact same string meaning two

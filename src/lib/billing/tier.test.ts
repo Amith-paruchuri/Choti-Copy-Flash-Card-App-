@@ -4,6 +4,7 @@ import {
   canStartTrial,
   effectiveTier,
   formatBillingDate,
+  shouldGrantProOnVerifiedCheckout,
   trialDaysRemaining,
 } from "@/lib/billing/tier";
 
@@ -152,5 +153,18 @@ describe("formatBillingDate", () => {
   it("never produces an all-numeric, locale-ambiguous date", () => {
     const result = formatBillingDate("2026-01-05T12:00:00Z");
     expect(result).not.toMatch(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/);
+  });
+});
+
+describe("shouldGrantProOnVerifiedCheckout", () => {
+  it("grants when the account isn't already pro", () => {
+    expect(shouldGrantProOnVerifiedCheckout("free")).toBe(true);
+    expect(shouldGrantProOnVerifiedCheckout("trialing")).toBe(true);
+    expect(shouldGrantProOnVerifiedCheckout("past_due")).toBe(true);
+    expect(shouldGrantProOnVerifiedCheckout("canceled")).toBe(true);
+  });
+
+  it("is a no-op once already pro — idempotent against a second callback or a webhook that won the race", () => {
+    expect(shouldGrantProOnVerifiedCheckout("pro")).toBe(false);
   });
 });

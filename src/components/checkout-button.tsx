@@ -65,11 +65,14 @@ function loadRazorpayScript(): Promise<void> {
 
 /**
  * The real "Upgrade to Pro" button — only rendered on the billing page, so
- * Checkout.js is never fetched anywhere else. Pro access is never granted
- * from the client: on success this shows "activating…" and polls (via
- * `router.refresh()`, which re-runs the server-rendered `tier` prop) until
- * the webhook has actually flipped the account to Pro, or times out with a
- * clear "still processing" message rather than hanging forever.
+ * Checkout.js is never fetched anywhere else. The client itself never writes
+ * `subscription_tier` — `verifyCheckoutCallback()` does, server-side, once it
+ * confirms the signature, usually resolving this almost instantly. This
+ * still shows "activating…" and polls (via `router.refresh()`, which
+ * re-runs the server-rendered `tier` prop) rather than assuming success,
+ * since that write is best-effort there and the webhook is the real
+ * fallback if it's ever slow or fails — with a clear "still processing"
+ * message on timeout rather than hanging forever.
  */
 export function CheckoutButton({
   email,

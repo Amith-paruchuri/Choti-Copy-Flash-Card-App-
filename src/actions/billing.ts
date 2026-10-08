@@ -8,6 +8,7 @@ import {
   createSubscription,
   verifyCheckoutSignature,
 } from "@/lib/billing/razorpay";
+import { shouldGrantProOnVerifiedCheckout } from "@/lib/billing/tier";
 import { serverEnv } from "@/lib/env";
 import { rateLimited } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -135,18 +136,25 @@ export async function startCheckout(): Promise<
 
 /**
  * Verifies the signature Checkout.js hands back on success. This proves the
- * callback genuinely came from Razorpay for THIS subscription — it is
- * deliberately NOT used to grant Pro access by itself (a client-side
- * callback can be skipped, replayed, or the tab closed before it fires);
- * the webhook remains the sole writer of `subscription_tier`. On success the
- * UI shows "activating…" and waits for the webhook to land.
+ * callback genuinely came from Razorpay for THIS subscription — an HMAC
+ * keyed on our own key secret, not something a client could forge — so once
+ * it checks out we grant Pro immediately rather than leaving the account
+ * stuck on "activating…" if the webhook is slow or never arrives (as
+ * happened in testing: Razorpay's servers couldn't reach a dev tunnel that
+ * wasn't configured yet). The grant is a single atomic, conditional UPDATE
+ * (`.neq("subscription_tier", "pro")`) scoped to the caller's own row, so
+ * calling this twice — or racing with the webhook, whichever lands first —
+ * never does more than one write and never un-grants or overwrites anything.
+ * The webhook remains the sole source of truth for everything AFTER initial
+ * activation (renewal, cancellation, payment failure); this function never
+ * touches `current_period_end` or any other field the webhook owns.
  */
 export async function verifyCheckoutCallback(params: {
   paymentId: unknown;
   subscriptionId: unknown;
   signature: unknown;
 }): Promise<ActionResult<{ verified: true }>> {
-  const { supabase } = await requireUser();
+  const { user, supabase } = await requireUser();
 
   const { paymentId, subscriptionId, signature } = params;
   if (
@@ -166,9 +174,11 @@ export async function verifyCheckoutCallback(params: {
 
   // Only valid for the subscription we ourselves just created for this
   // account — relies on RLS (profiles_select_own) to scope the lookup.
+  // Also grabs the current tier so we know below whether a grant is even
+  // needed, without a second round-trip.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_id")
+    .select("subscription_id, subscription_tier")
     .maybeSingle();
   if (!profile?.subscription_id || profile.subscription_id !== subscriptionId) {
     return actionError("This checkout doesn't match your account.");
@@ -184,6 +194,21 @@ export async function verifyCheckoutCallback(params: {
     return actionError(
       "Couldn't verify that payment — contact support if you were charged.",
     );
+  }
+
+  // Best-effort: if this write fails, the webhook still grants Pro on its
+  // own once it lands, so a failure here isn't reported as an error — the
+  // signature genuinely did verify, which is this function's actual promise.
+  // The `.neq()` filter is the actual race-safety net (in case the webhook
+  // lands between the read above and this write); shouldGrantProOnVerifiedCheckout
+  // is just what decides whether to bother attempting the write at all.
+  if (shouldGrantProOnVerifiedCheckout(profile.subscription_tier)) {
+    const admin = createAdminClient();
+    await admin
+      .from("profiles")
+      .update({ subscription_tier: "pro" })
+      .eq("user_id", user.id)
+      .neq("subscription_tier", "pro");
   }
 
   return { ok: true, data: { verified: true } };
