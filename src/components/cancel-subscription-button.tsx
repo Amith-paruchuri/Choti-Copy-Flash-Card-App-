@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { formatBillingDate } from "@/lib/billing/tier";
 
 export function CancelSubscriptionButton({
   currentPeriodEnd,
@@ -27,7 +28,7 @@ export function CancelSubscriptionButton({
   const [pending, start] = useTransition();
 
   const endsCopy = currentPeriodEnd
-    ? new Date(currentPeriodEnd).toLocaleDateString()
+    ? formatBillingDate(currentPeriodEnd)
     : "the end of your current billing period";
 
   function confirm() {

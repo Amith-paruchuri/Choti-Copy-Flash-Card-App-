@@ -72,3 +72,21 @@ export function trialDaysRemaining(
   const ms = new Date(trialEndsAt).getTime() - now.getTime();
   return Math.max(0, Math.ceil(ms / 864e5));
 }
+
+/**
+ * "8 Nov 2026" — day, short month NAME, year. Deliberately not
+ * `toLocaleDateString()` with no options: that renders as e.g. "11/8/2026"
+ * in en-US and "8/11/2026" in en-GB, the exact same string meaning two
+ * different dates depending on the reader's locale — unacceptable for a
+ * billing/renewal date. `en-GB` here only fixes the FIELD ORDER (day before
+ * month); the month is spelled out either way, so there's no ambiguity left
+ * regardless of the viewer's actual locale. Renders in the viewer's local
+ * timezone, same as the rest of the app's date displays.
+ */
+export function formatBillingDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}

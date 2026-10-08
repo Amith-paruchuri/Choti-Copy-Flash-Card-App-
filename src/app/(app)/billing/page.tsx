@@ -6,7 +6,7 @@ import { CancelSubscriptionButton } from "@/components/cancel-subscription-butto
 import { CheckoutButton } from "@/components/checkout-button";
 import { StartTrialButton } from "@/components/start-trial-button";
 import { Button } from "@/components/ui/button";
-import { canStartTrial } from "@/lib/billing/tier";
+import { canStartTrial, formatBillingDate } from "@/lib/billing/tier";
 import { getBillingProfile } from "@/lib/queries/account";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -41,7 +41,7 @@ export default async function BillingPage() {
     !!billing.currentPeriodEnd &&
     new Date(billing.currentPeriodEnd).getTime() > new Date().getTime();
   const periodEndCopy = billing.currentPeriodEnd
-    ? new Date(billing.currentPeriodEnd).toLocaleDateString()
+    ? formatBillingDate(billing.currentPeriodEnd)
     : null;
 
   return (

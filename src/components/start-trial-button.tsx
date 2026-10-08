@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { startTrial } from "@/actions/billing";
 import { Button } from "@/components/ui/button";
+import { formatBillingDate } from "@/lib/billing/tier";
 import { cn } from "@/lib/utils";
 
 /**
@@ -25,7 +26,7 @@ export function StartTrialButton({ className }: { className?: string }) {
         toast.error(res.error);
         return;
       }
-      const ends = new Date(res.data.trialEndsAt).toLocaleDateString();
+      const ends = formatBillingDate(res.data.trialEndsAt);
       toast.success(`Trial started — Pro features until ${ends}.`);
       router.refresh();
     });

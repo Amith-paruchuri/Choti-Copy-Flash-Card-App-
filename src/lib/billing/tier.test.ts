@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { canStartTrial, effectiveTier, trialDaysRemaining } from "@/lib/billing/tier";
+import {
+  canStartTrial,
+  effectiveTier,
+  formatBillingDate,
+  trialDaysRemaining,
+} from "@/lib/billing/tier";
 
 const NOW = new Date("2026-10-07T12:00:00Z");
 const FUTURE = "2026-10-20T00:00:00Z";
@@ -136,5 +141,16 @@ describe("trialDaysRemaining", () => {
 
   it("is null with no trial on record", () => {
     expect(trialDaysRemaining(null, NOW)).toBeNull();
+  });
+});
+
+describe("formatBillingDate", () => {
+  it("renders as day, short month name, year — unambiguous regardless of locale", () => {
+    expect(formatBillingDate("2026-11-08T12:00:00Z")).toBe("8 Nov 2026");
+  });
+
+  it("never produces an all-numeric, locale-ambiguous date", () => {
+    const result = formatBillingDate("2026-01-05T12:00:00Z");
+    expect(result).not.toMatch(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/);
   });
 });
