@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 
+import { isBlockedEmailDomain } from "@/lib/auth/blocked-email-domains";
 import { createClient } from "@/lib/supabase/server";
 import { siteUrl, TERMS_VERSION } from "@/lib/env";
 import { credentialsSchema, emailSchema } from "@/lib/validation";
@@ -68,6 +69,10 @@ export async function signUpWithPassword(
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  if (isBlockedEmailDomain(parsed.data.email)) {
+    return { error: "Please use a real email address." };
   }
 
   const accepted = formData.get("acceptTerms");
