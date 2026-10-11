@@ -111,3 +111,15 @@ $$;
 create trigger reject_blocked_email_domains_trigger
   before insert on auth.users
   for each row execute function public.reject_blocked_email_domains();
+
+-- ROLLBACK — not executed as part of this migration (every line below is a
+-- SQL comment). Run manually, in this exact order, to fully undo it: the
+-- trigger must drop before the function it calls, which must drop before
+-- the function IT calls. Dropping the table also permanently deletes any
+-- extra domains added via `insert` after this migration was applied — make
+-- sure that's actually wanted before running the last line.
+--
+-- drop trigger if exists reject_blocked_email_domains_trigger on auth.users;
+-- drop function if exists public.reject_blocked_email_domains();
+-- drop function if exists public.is_blocked_email_domain(text);
+-- drop table if exists public.blocked_email_domains;
