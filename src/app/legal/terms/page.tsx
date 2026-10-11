@@ -135,7 +135,7 @@ export default function TermsPage() {
           legal, or safety-critical study. To the maximum extent permitted by
           law, we are not liable for indirect or consequential losses, and our
           total liability is limited to the amount you have paid us in the
-          previous 12 months (currently zero).
+          previous 12 months.
         </p>
       </LegalSection>
 
