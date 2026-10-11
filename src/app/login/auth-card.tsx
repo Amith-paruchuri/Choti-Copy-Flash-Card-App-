@@ -5,10 +5,12 @@ import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 
 import {
+  resendSignupCode,
   sendPasswordReset,
   signInWithGoogle,
   signInWithPassword,
   signUpWithPassword,
+  verifySignupCode,
   type AuthState,
 } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
@@ -78,6 +80,33 @@ export function AuthCard({
         : sendPasswordReset;
   const [state, formAction] = useActionState(action, EMPTY);
 
+  // Existing account found on signup: flip to the sign-in tab (state adjusted
+  // during render, the React-sanctioned alternative to setState in an effect).
+  const [seenState, setSeenState] = useState<AuthState>(EMPTY);
+  if (state !== seenState) {
+    setSeenState(state);
+    if (state.existing) setMode("signin");
+  }
+
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [verifyState, verifyAction] = useActionState(verifySignupCode, EMPTY);
+  const [resendState, resendAction] = useActionState(resendSignupCode, EMPTY);
+
+  // Signup succeeded and a code was emailed: show the PIN step.
+  const [seenSignup, setSeenSignup] = useState<AuthState>(EMPTY);
+  if (state !== seenSignup) {
+    setSeenSignup(state);
+    if (state.verifyEmail) setPendingEmail(state.verifyEmail);
+  }
+
+  useEffect(() => {
+    if (verifyState.error) toast.error(verifyState.error);
+  }, [verifyState]);
+  useEffect(() => {
+    if (resendState.error) toast.error(resendState.error);
+    if (resendState.message) toast.success(resendState.message);
+  }, [resendState]);
+
   useEffect(() => {
     if (initialError) toast.error(initialError);
   }, [initialError]);
@@ -114,7 +143,54 @@ export function AuthCard({
         <span className="bg-border h-px flex-1" />
       </div>
 
-      {mode !== "reset" ? (
+      {pendingEmail ? (
+        <div className="space-y-4">
+          <form action={verifyAction} className="space-y-4">
+            <input type="hidden" name="next" value={next} />
+            <input type="hidden" name="email" value={pendingEmail} />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Check your email</p>
+              <p className="text-muted-foreground text-xs">
+                We sent a 6-digit code to {pendingEmail}. Enter it to finish
+                creating your account.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="code">Verification code</Label>
+              <Input
+                id="code"
+                name="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                required
+                placeholder="123456"
+                className="text-center text-lg tracking-[0.4em]"
+              />
+            </div>
+            <SubmitButton label="Verify and create account" />
+          </form>
+          <div className="flex items-center justify-between text-xs">
+            <form action={resendAction}>
+              <input type="hidden" name="email" value={pendingEmail} />
+              <button
+                type="submit"
+                className="text-ink font-medium hover:underline"
+              >
+                Resend code
+              </button>
+            </form>
+            <button
+              type="button"
+              onClick={() => setPendingEmail(null)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Use a different email
+            </button>
+          </div>
+        </div>
+      ) : mode !== "reset" ? (
         <>
           <Tabs
             value={mode}
@@ -140,7 +216,7 @@ export function AuthCard({
                 type="email"
                 autoComplete="email"
                 required
-                placeholder="you@example.com"
+                placeholder="Enter your email"
               />
             </div>
             <div className="space-y-1.5">
@@ -168,6 +244,21 @@ export function AuthCard({
                 placeholder="At least 8 characters"
               />
             </div>
+
+            {mode === "signup" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="confirmPassword">Confirm password</Label>
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  placeholder="Re-enter your password"
+                />
+              </div>
+            )}
 
             {mode === "signup" && (
               <label className="text-muted-foreground flex items-start gap-2 text-xs">
@@ -224,7 +315,7 @@ export function AuthCard({
               type="email"
               autoComplete="email"
               required
-              placeholder="you@example.com"
+              placeholder="Enter your email"
             />
           </div>
           <SubmitButton label="Send reset link" />

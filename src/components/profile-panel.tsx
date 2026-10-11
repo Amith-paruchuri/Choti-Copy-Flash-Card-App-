@@ -194,7 +194,7 @@ export function ProfilePanel({
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 required
-                placeholder="you@example.com"
+                placeholder="Enter your email"
               />
             </div>
             <DialogFooter>
