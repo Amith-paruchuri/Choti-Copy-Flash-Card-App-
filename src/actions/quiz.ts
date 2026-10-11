@@ -5,7 +5,9 @@ import { z } from "zod";
 
 import { requireUser } from "@/lib/auth/session";
 import { getAIProvider } from "@/lib/ai";
+import { FEATURE, limitsForTier, upgradeCopyForFeature } from "@/lib/billing/limits";
 import { expandSubjectScope } from "@/lib/queries/quiz";
+import { getBillingProfile } from "@/lib/queries/account";
 import { listFlashcards } from "@/lib/queries/flashcards";
 import { IMAGE_PRIMARY_MAX_CHARS } from "@/lib/media/constants";
 import { isImagePrimary } from "@/lib/media/images";
@@ -17,7 +19,8 @@ import {
 } from "@/lib/queries/review";
 import { saveQuizSessionSchema } from "@/lib/validation";
 import { recordAiCall } from "@/lib/usage/ai";
-import { actionError, type ActionResult } from "@/actions/types";
+import { checkFeatureLimit, recordFeatureUsage } from "@/lib/usage/feature";
+import { actionError, actionLimitError, type ActionResult } from "@/actions/types";
 import type { QuizCardInput } from "@/lib/ai/types";
 import type { CardMemory } from "@/lib/srs/fsrs";
 import type {
@@ -139,6 +142,20 @@ export async function generateQuizForCards(
 
     let generated = 0;
     if (toGenerate.length > 0) {
+      // One check per *generation event*, not per underlying batch call — a
+      // quiz covering many cards can still fan out into several AI calls
+      // below, but it only ever costs one "quiz set" against the daily cap.
+      const { tier } = await getBillingProfile();
+      const cap = limitsForTier(tier).aiQuizSetsPerDay;
+      const limit = await checkFeatureLimit(supabase, FEATURE.quizSets, cap);
+      if (!limit.allowed) {
+        return actionLimitError(
+          `You've used all ${cap} AI quiz sets for today. ${upgradeCopyForFeature(FEATURE.quizSets)}.`,
+          { feature: FEATURE.quizSets, used: limit.used, cap, tier },
+        );
+      }
+      await recordFeatureUsage(supabase, FEATURE.quizSets);
+
       const ai = getAIProvider();
 
       // Text-only cards batch normally; image-primary cards (a diagram with
@@ -286,6 +303,19 @@ export async function regenerateQuizQuestion(
       .maybeSingle();
     if (!card) return actionError("The card behind this question is gone.");
 
+    // Shares the same daily counter as generateQuizForCards() — a reroll is
+    // still an AI quiz-authoring call under the hood, and letting it bypass
+    // the cap would make it a trivial way around "2 quiz sets a day".
+    const { tier } = await getBillingProfile();
+    const cap = limitsForTier(tier).aiQuizSetsPerDay;
+    const limit = await checkFeatureLimit(supabase, FEATURE.quizSets, cap);
+    if (!limit.allowed) {
+      return actionLimitError(
+        `You've used all ${cap} AI quiz sets for today. ${upgradeCopyForFeature(FEATURE.quizSets)}.`,
+        { feature: FEATURE.quizSets, used: limit.used, cap, tier },
+      );
+    }
+
     const ai = getAIProvider();
     const images = isImagePrimary(
       card.content,
@@ -305,6 +335,7 @@ export async function regenerateQuizQuestion(
       style,
     });
     await recordAiCall(supabase);
+    await recordFeatureUsage(supabase, FEATURE.quizSets);
     if (!item) return actionError("Couldn’t come up with another question.");
 
     const { data: updated, error } = await supabase
@@ -440,7 +471,9 @@ export async function prepareQuiz(
     const missing = chosenIds.filter((id) => !questionByCard.has(id));
     if (missing.length > 0) {
       const gen = await generateQuizForCards({ cardIds: missing, style });
-      if (!gen.ok) return actionError(gen.error);
+      // Forward the whole result (not just .error) so a limit-reached
+      // rejection keeps its `limit` payload through this extra hop.
+      if (!gen.ok) return gen;
       const { data: fresh } = await supabase
         .from("quiz_questions")
         .select("*")

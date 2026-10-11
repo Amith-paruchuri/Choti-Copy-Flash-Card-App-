@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Check, Lightbulb, Pencil, RefreshCw, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -8,6 +8,9 @@ import {
   generateCardMnemonic,
   updateCardMnemonic,
 } from "@/actions/mnemonic";
+import { getMyFeatureUsage } from "@/actions/usage";
+import { FeatureUsageNote } from "@/components/feature-usage-note";
+import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,15 +29,48 @@ export function CardMnemonic({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(initial ?? "");
   const [pending, start] = useTransition();
+  const [usage, setUsage] = useState<{
+    tier: string;
+    used: number;
+    cap: number;
+    trialDaysLeft: number | null;
+  } | null>(null);
+  const [limitMessage, setLimitMessage] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Only the "no mnemonic yet" CTA state needs today's count — once a
+  // mnemonic exists, showing it on every single card would be noisy.
+  useEffect(() => {
+    if (mnemonic) return;
+    let cancelled = false;
+    getMyFeatureUsage().then((snapshot) => {
+      if (cancelled) return;
+      if (snapshot.tier === "free" || snapshot.tier === "trialing") {
+        setUsage({
+          tier: snapshot.tier,
+          used: snapshot.mnemonics.used,
+          cap: snapshot.mnemonics.cap,
+          trialDaysLeft: snapshot.trialDaysLeft,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mnemonic]);
 
   function generate() {
     start(async () => {
       const res = await generateCardMnemonic({ flashcardId });
       if (!res.ok) {
-        toast.error(res.error);
+        if (res.limit) {
+          setLimitMessage(res.error);
+        } else {
+          toast.error(res.error);
+        }
         return;
       }
+      setLimitMessage(null);
       setMnemonic(res.data.mnemonic);
       setDraft(res.data.mnemonic);
     });
@@ -54,15 +90,29 @@ export function CardMnemonic({
 
   if (!mnemonic && !editing) {
     return (
-      <button
-        type="button"
-        onClick={generate}
-        disabled={pending}
-        className="text-highlight hover:text-highlight/80 mt-3 inline-flex items-center gap-1.5 text-xs font-medium transition disabled:opacity-60"
-      >
-        <Sparkles className={cn("size-3.5", pending && "animate-pulse")} />
-        {pending ? "Thinking of one…" : "Generate a mnemonic"}
-      </button>
+      <div className="mt-3 space-y-1.5">
+        <button
+          type="button"
+          onClick={generate}
+          disabled={pending}
+          className="text-highlight hover:text-highlight/80 inline-flex items-center gap-1.5 text-xs font-medium transition disabled:opacity-60"
+        >
+          <Sparkles className={cn("size-3.5", pending && "animate-pulse")} />
+          {pending ? "Thinking of one…" : "Generate a mnemonic"}
+        </button>
+        {limitMessage ? (
+          <UpgradePrompt message={limitMessage} />
+        ) : (
+          usage && (
+            <FeatureUsageNote
+              used={usage.used}
+              cap={usage.cap}
+              label="AI mnemonics"
+              trialDaysLeft={usage.trialDaysLeft}
+            />
+          )
+        )}
+      </div>
     );
   }
 

@@ -3,9 +3,12 @@ import { z } from "zod";
 
 import { requireUser } from "@/lib/auth/session";
 import { getAIProvider, AIError } from "@/lib/ai";
+import { FEATURE, limitsForTier, upgradeCopyForFeature } from "@/lib/billing/limits";
 import { IMPORT_CAPS } from "@/lib/import/caps";
+import { getBillingProfile } from "@/lib/queries/account";
 import { isBroadSubject } from "@/lib/validation";
 import { recordAiCall } from "@/lib/usage/ai";
+import { checkFeatureLimit, recordFeatureUsage } from "@/lib/usage/feature";
 import type { ContentPart } from "@/lib/ai/types";
 import type { Database, ImportChunk, ImportKind } from "@/types/database";
 
@@ -123,13 +126,38 @@ export async function POST(request: NextRequest) {
       .map((s) => s.name)
       .filter((n) => !isBroadSubject(n));
 
+    const { tier } = await getBillingProfile();
+    const dailyCap = limitsForTier(tier).aiCardsPerDay;
+    const dailyLimit = await checkFeatureLimit(supabase, FEATURE.cards, dailyCap);
+    if (dailyLimit.remaining <= 0) {
+      const message = `You've used all ${dailyCap} AI-generated cards for today. ${upgradeCopyForFeature(FEATURE.cards)}.`;
+      await finish({ status: "error", error: message });
+      return NextResponse.json(
+        {
+          error: message,
+          limit: { feature: FEATURE.cards, used: dailyLimit.used, cap: dailyCap, tier },
+        },
+        { status: 429 },
+      );
+    }
+
+    // Clamped to whatever's smaller: this chunk's own ceiling, the
+    // per-import total, or what's left of today's daily cards budget — so a
+    // single chunk never blows straight through the daily cap in one call.
     const cards = await getAIProvider().generateCards({
       parts: [part],
       context: CONTEXT[imp.kind],
-      maxCards: Math.min(IMPORT_CAPS.maxCardsPerChunk, budget),
+      maxCards: Math.min(
+        IMPORT_CAPS.maxCardsPerChunk,
+        budget,
+        dailyLimit.remaining,
+      ),
       existingSubjects,
     });
     await recordAiCall(supabase);
+    if (cards.length > 0) {
+      await recordFeatureUsage(supabase, FEATURE.cards, cards.length);
+    }
 
     if (cards.length > 0) {
       await supabase.from("import_cards").insert(

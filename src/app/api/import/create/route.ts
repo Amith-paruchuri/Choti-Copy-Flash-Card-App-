@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { requireUser } from "@/lib/auth/session";
+import { limitsForTier, startOfUtcWeek } from "@/lib/billing/limits";
+import { getBillingProfile } from "@/lib/queries/account";
 
 export const maxDuration = 60;
 
@@ -28,6 +30,29 @@ export async function POST(request: NextRequest) {
   // caller's own folder before we trust the path.
   if (!parsed.data.storagePath.startsWith(`${user.id}/`)) {
     return NextResponse.json({ error: "Bad upload path." }, { status: 400 });
+  }
+
+  // Only PDF/image imports carry a weekly cap — text/zip stay ungated.
+  if (parsed.data.kind === "pdf" || parsed.data.kind === "image") {
+    const { tier } = await getBillingProfile();
+    const weeklyCap = limitsForTier(tier).importsPerWeek;
+    if (weeklyCap !== null) {
+      const { count } = await supabase
+        .from("imports")
+        .select("*", { count: "exact", head: true })
+        .in("kind", ["pdf", "image"])
+        .gte("created_at", startOfUtcWeek().toISOString());
+      const used = count ?? 0;
+      if (used >= weeklyCap) {
+        return NextResponse.json(
+          {
+            error: `You've used all ${weeklyCap} PDF/image imports for this week. Pro removes the weekly cap.`,
+            limit: { feature: "import_weekly", used, cap: weeklyCap, tier },
+          },
+          { status: 429 },
+        );
+      }
+    }
   }
 
   const { data, error } = await supabase

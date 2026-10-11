@@ -5,9 +5,12 @@ import { z } from "zod";
 
 import { requireUser } from "@/lib/auth/session";
 import { getAIProvider } from "@/lib/ai";
+import { FEATURE, limitsForTier, upgradeCopyForFeature } from "@/lib/billing/limits";
+import { getBillingProfile } from "@/lib/queries/account";
 import { mnemonicSchema } from "@/lib/validation";
 import { recordAiCall } from "@/lib/usage/ai";
-import { actionError, type ActionResult } from "@/actions/types";
+import { checkFeatureLimit, recordFeatureUsage } from "@/lib/usage/feature";
+import { actionError, actionLimitError, type ActionResult } from "@/actions/types";
 
 const generateSchema = z.object({ flashcardId: z.string().uuid() });
 const updateSchema = z.object({
@@ -39,6 +42,16 @@ export async function generateCardMnemonic(
       .maybeSingle();
     if (!card) return actionError("That card no longer exists.");
 
+    const { tier } = await getBillingProfile();
+    const cap = limitsForTier(tier).aiMnemonicsPerDay;
+    const limit = await checkFeatureLimit(supabase, FEATURE.mnemonics, cap);
+    if (!limit.allowed) {
+      return actionLimitError(
+        `You've used all ${cap} AI mnemonics for today. ${upgradeCopyForFeature(FEATURE.mnemonics)}.`,
+        { feature: FEATURE.mnemonics, used: limit.used, cap, tier },
+      );
+    }
+
     const { mnemonic } = await getAIProvider().generateMnemonic({
       title: card.title ?? "",
       subtitle: card.subtitle ?? "",
@@ -46,6 +59,7 @@ export async function generateCardMnemonic(
       avoid: card.mnemonic ?? undefined,
     });
     await recordAiCall(supabase);
+    await recordFeatureUsage(supabase, FEATURE.mnemonics);
 
     const { error } = await supabase
       .from("flashcards")

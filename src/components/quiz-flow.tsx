@@ -15,6 +15,8 @@ import {
 import { toast } from "sonner";
 
 import { prepareQuiz, saveQuizSession, type QuizSessionItem } from "@/actions/quiz";
+import { getMyFeatureUsage } from "@/actions/usage";
+import { FeatureUsageNote } from "@/components/feature-usage-note";
 import {
   QuizRunner,
   type QuizMode,
@@ -23,6 +25,7 @@ import {
 import { SessionBreakdown } from "@/components/session-breakdown";
 import { SubjectDrilldown } from "@/components/subject-drilldown";
 import { Button } from "@/components/ui/button";
+import { UpgradePrompt } from "@/components/upgrade-prompt";
 import { cn } from "@/lib/utils";
 import type { DrilldownSubject } from "@/lib/queries/subjects";
 import type {
@@ -138,6 +141,25 @@ export function QuizFlow({
   const [items, setItems] = useState<QuizSessionItem[]>([]);
   const [results, setResults] = useState<QuizResult[]>([]);
   const [pending, start] = useTransition();
+  const [usage, setUsage] = useState<{
+    used: number;
+    cap: number;
+    trialDaysLeft: number | null;
+  } | null>(null);
+  const [limitMessage, setLimitMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyFeatureUsage().then((snapshot) => {
+      if (cancelled) return;
+      if (snapshot.tier === "free" || snapshot.tier === "trialing") {
+        setUsage({ ...snapshot.quizSets, trialDaysLeft: snapshot.trialDaysLeft });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const subjectIds = focusId ? [focusId] : [];
 
@@ -179,6 +201,7 @@ export function QuizFlow({
 
   function begin() {
     setPhase("loading");
+    setLimitMessage(null);
     start(async () => {
       const res = await prepareQuiz({
         subjectIds,
@@ -186,7 +209,11 @@ export function QuizFlow({
         style,
       });
       if (!res.ok) {
-        toast.error(res.error);
+        if (res.limit) {
+          setLimitMessage(res.error);
+        } else {
+          toast.error(res.error);
+        }
         setPhase("pick");
         return;
       }
@@ -515,10 +542,24 @@ export function QuizFlow({
         />
       </section>
 
-      <Button onClick={begin} size="lg" className="w-full gap-2 shadow-sm">
-        {mode === "exam" ? "Start exam" : "Start quiz"}
-        <ArrowRight className="size-4" />
-      </Button>
+      <div className="space-y-2">
+        <Button onClick={begin} size="lg" className="w-full gap-2 shadow-sm">
+          {mode === "exam" ? "Start exam" : "Start quiz"}
+          <ArrowRight className="size-4" />
+        </Button>
+        {limitMessage ? (
+          <UpgradePrompt message={limitMessage} />
+        ) : (
+          usage && (
+            <FeatureUsageNote
+              used={usage.used}
+              cap={usage.cap}
+              label="AI quiz sets"
+              trialDaysLeft={usage.trialDaysLeft}
+            />
+          )
+        )}
+      </div>
 
       {pastTests}
     </div>

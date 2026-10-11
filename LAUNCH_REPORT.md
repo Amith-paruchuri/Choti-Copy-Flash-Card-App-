@@ -180,3 +180,167 @@ Committed locally as a single commit; **not pushed**, per instructions.
    calling it launched — confirm `subscription_tier` flips to `pro` via
    the real webhook, then cancel/refund it the same way you'd want a
    customer's cancellation to work.
+
+---
+
+# Launch Report — Free vs Pro usage limits (2026-10-11)
+
+Scope: this repo only. No push, no DB migration applied, no secrets printed.
+
+## What changed
+
+**Single source of truth**: `src/lib/billing/limits.ts` — `TIER_LIMITS.free`/`.pro`
+with every number from your spec (30/5/2 cards-mnemonics-quiz per day free,
+300/100/30 Pro; 3/week PDF-image imports free, uncapped Pro; 5MB/20pg free,
+50MB/300pg Pro). `limitsForTier()` takes the EFFECTIVE tier
+(`effectiveTier()`), so Pro limits apply during an active trial and during a
+canceled subscription's remaining paid period, same as the rest of the
+billing model. Read by the server checks, the usage-note components, and
+the /billing pricing cards — nothing hand-typed in more than one place.
+
+**New migration, NOT applied** — `supabase/migrations/0024_feature_usage_daily.sql`:
+a `feature_usage_daily(user_id, day, feature, count)` table (own-row read
+only, writes through a SECURITY DEFINER `record_feature_usage()` function —
+same shape as `record_ai_call()` from 0021) backing the three new
+hard-enforced counters. **Please review and apply it yourself** — SQL
+printed below.
+
+**Server enforcement** (day = UTC, week = UTC calendar week starting
+Monday 00:00 UTC):
+- `generateCardMnemonic()` (`src/actions/mnemonic.ts`) — checks the daily
+  mnemonic cap before calling the AI, returns a typed limit error if hit.
+- `generateQuizForCards()` / `generateQuizForSubject()` / `regenerateQuizQuestion()`
+  (`src/actions/quiz.ts`) — one check per generation EVENT (not per
+  underlying batched AI call), so one "quiz set" really means one logical
+  quiz-building action. **Design call**: `regenerateQuizQuestion` draws from
+  the SAME daily counter as a fresh quiz — otherwise it's a trivial way to
+  bypass "2 quiz sets/day" by spamming single-question rerolls. Also fixed
+  a real bug while wiring this: `prepareQuiz()` was forwarding only
+  `gen.error` (a plain string) from a failed `generateQuizForCards()` call,
+  silently dropping the structured `limit` payload the UI needs to show the
+  right prompt — now forwards the whole result.
+- `/api/import/step` — clamps each AI card-generation call to
+  `min(per-chunk cap, per-import cap, today's remaining budget)`, same
+  pattern the per-import cap already used. Hard-stops with a typed 429 if
+  today's budget is already at 0, rather than silently asking the AI for
+  0 cards.
+- `/api/import/create` — rejects a new PDF/image import with a typed 429
+  if the weekly cap is already used (counts existing `imports` rows, no
+  new table needed — RLS already scopes it to the caller). Text/zip
+  imports are never gated, per your spec.
+- `/api/import/parse` — **behavior change**: a PDF over the tier's page
+  cap now REJECTS outright (typed error) instead of the old behavior of
+  silently reading only the first N pages and attaching a note. Same for
+  file size, checked server-side for the first time (`blob.size` after
+  download) — previously `maxUploadBytes` was a 20MB flat cap checked
+  **client-side only**, a real gap against "never trust the client."
+  Pro's 50MB size cap is now larger than that old flat ceiling, so a
+  client-side pre-check was updated too (`import-uploader.tsx`) to not
+  wrongly block a Pro user's larger upload before it ever reaches the
+  server.
+
+**UI**: new `FeatureUsageNote` ("14 of 30 AI cards used today" — appends
+"(Pro trial — N days left)" during an active trial) and `UpgradePrompt`
+("Pro gives you 300 AI cards a day" + a /billing link, never blocks the
+rest of the app) components, wired into:
+- `CardMnemonic` — note + prompt on the "Generate a mnemonic" CTA state
+  only (showing it on every already-mnemonic'd card in a deck would be
+  noisy).
+- `QuizFlow`'s quiz-setup screen — note + prompt next to "Start quiz".
+- `ImportUploader` — both the daily cards note and the weekly
+  imports-this-week note, plus upgrade prompts on any of the three
+  import-specific limit errors (size/pages/weekly).
+- `/billing`'s Free and Pro cards now list the exact same numbers,
+  generated from `TIER_LIMITS` (can't drift out of sync with
+  enforcement) — no more "higher limits" vague wording.
+
+Both `CardMnemonic` and the quiz screen self-fetch today's usage via a
+new `getMyFeatureUsage()` server action (`src/actions/usage.ts`) rather
+than threading counts down through every parent that might render them —
+those two components are reused in many places in the tree.
+
+**"Priority processing" for Pro**: there's no job queue anywhere in this
+app — every request is synchronous. This is pricing-card copy only, not
+an actual scheduling change. Flagging explicitly rather than silently
+deciding.
+
+## Migration SQL you must review and apply
+
+```sql
+-- supabase/migrations/0024_feature_usage_daily.sql
+create table public.feature_usage_daily (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  day     date not null,
+  feature text not null check (feature in ('ai_cards', 'ai_mnemonics', 'ai_quiz_sets')),
+  count   int  not null default 0 check (count >= 0),
+  primary key (user_id, day, feature)
+);
+
+alter table public.feature_usage_daily enable row level security;
+
+create policy feature_usage_daily_select_own on public.feature_usage_daily
+  for select using (user_id = (select auth.uid()));
+
+create or replace function public.record_feature_usage(p_feature text, p_amount int default 1)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count int;
+begin
+  insert into public.feature_usage_daily (user_id, day, feature, count)
+  values (auth.uid(), (now() at time zone 'utc')::date, p_feature, p_amount)
+  on conflict (user_id, day, feature) do update
+    set count = public.feature_usage_daily.count + p_amount
+  returning count into v_count;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.record_feature_usage(text, int) from public;
+grant execute on function public.record_feature_usage(text, int) to authenticated;
+```
+
+Full file (with header comments explaining each choice) is at
+`supabase/migrations/0024_feature_usage_daily.sql`.
+
+**Important**: until you apply this, the three new daily caps are NOT
+actually enforced — `checkFeatureLimit()`/`getFeatureUsageToday()`
+(`src/lib/usage/feature.ts`) fail OPEN (report "plenty of room left")
+when the table doesn't exist yet, matching this codebase's existing
+convention for every other pending migration this session
+(`getStudyPacing()`, `getUsageSummary()`, etc.) — so shipping this code
+ahead of the migration doesn't break card/mnemonic/quiz generation for
+anyone, it just means the cap isn't live yet. The import size/page/weekly
+checks, by contrast, work immediately — they don't depend on 0024 at all
+(size/pages are checked directly against the uploaded file; weekly count
+just queries the existing `imports` table).
+
+## Verification
+
+`npm run typecheck`, `npm run lint`, `npm test` (**186/186 passing**, 18
+new), and `npm run build` all clean — nothing needed fixing beyond what's
+already folded into the implementation above.
+
+## What I could not verify
+
+- **No live click-through.** I didn't have browser/login access to
+  actually hit a cap in the running app and watch the UpgradePrompt
+  render, or upload an oversized/too-many-page PDF and watch the typed
+  429 come back. Everything above is verified by code reading + the pure
+  unit tests (`src/lib/billing/limits.test.ts`), not an end-to-end click.
+- **The three import-route typed-error shapes** (`{error, limit}` JSON
+  bodies with `status: 429`) are new and not covered by an automated
+  request-level test — there's no existing convention in this codebase
+  for testing Route Handlers directly (same gap noted in the Razorpay
+  webhook work; that one got a dedicated `scripts/test-webhook.ts`
+  instead, which doesn't apply here since these routes need a real
+  authenticated session + real file upload, not a signed payload).
+- **Mobile layout**: I didn't have a way to visually confirm the longer
+  10-line pricing cards and the new inline usage notes read well at phone
+  width — the classes used (`text-sm`/`text-xs`, `flex-wrap`-friendly,
+  no fixed widths) follow the same patterns already used elsewhere in
+  this app, but I'd treat this as unconfirmed until you look at it on a
+  real phone.

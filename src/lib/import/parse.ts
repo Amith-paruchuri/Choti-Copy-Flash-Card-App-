@@ -25,12 +25,39 @@ function textChunks(body: string): ImportChunk[] {
   return chunkText(body).chunks.map((t) => ({ type: "text", text: t }));
 }
 
-async function parsePdf(bytes: Uint8Array): Promise<ParsedImport> {
+/**
+ * Thrown when a PDF has more pages than the caller's tier allows. Caught
+ * specifically (not via the generic parse-error handler) so the route can
+ * respond with a typed limit error instead of a plain message.
+ */
+export class ImportPageLimitError extends Error {
+  constructor(
+    public readonly totalPages: number,
+    public readonly maxPages: number,
+  ) {
+    super(
+      `This PDF has ${totalPages} pages — ${maxPages} is your current limit.`,
+    );
+    this.name = "ImportPageLimitError";
+  }
+}
+
+/**
+ * `maxPages` is the caller's TIER cap (free/Pro, from limits.ts), not a
+ * fixed system ceiling — exceeding it rejects outright rather than silently
+ * reading a truncated prefix, so going over reads as a clear "this is what
+ * Pro unlocks" moment instead of a confusingly incomplete import.
+ */
+async function parsePdf(
+  bytes: Uint8Array,
+  maxPages: number,
+): Promise<ParsedImport> {
   const { totalPages, text } = await extractText(bytes, { mergePages: false });
-  const pageCapHit = totalPages > IMPORT_CAPS.maxPdfPages;
-  const pages = text.slice(0, IMPORT_CAPS.maxPdfPages);
-  const blankPages = pages.filter((p) => p.trim().length < 3).length;
-  const body = pages
+  if (totalPages > maxPages) {
+    throw new ImportPageLimitError(totalPages, maxPages);
+  }
+  const blankPages = text.filter((p) => p.trim().length < 3).length;
+  const body = text
     .map((p) => p.trim())
     .filter(Boolean)
     .join("\n\n");
@@ -40,28 +67,17 @@ async function parsePdf(bytes: Uint8Array): Promise<ParsedImport> {
       chunks: [],
       notes:
         "No selectable text found — this PDF looks scanned. Try uploading the pages as images instead.",
-      truncated: pageCapHit,
+      truncated: false,
     };
   }
 
   const { truncated } = chunkText(body);
-  const noteParts: string[] = [];
-  if (pageCapHit) {
-    noteParts.push(
-      `This PDF has ${totalPages} pages — only the first ${IMPORT_CAPS.maxPdfPages} were read. Import the later pages as a separate PDF to cover the rest.`,
-    );
-  }
-  if (blankPages > 0) {
-    noteParts.push(
-      `${blankPages} page${blankPages === 1 ? "" : "s"} had no readable text and ${blankPages === 1 ? "was" : "were"} skipped.`,
-    );
-  }
+  const notes =
+    blankPages > 0
+      ? `${blankPages} page${blankPages === 1 ? "" : "s"} had no readable text and ${blankPages === 1 ? "was" : "were"} skipped.`
+      : null;
 
-  return {
-    chunks: textChunks(body),
-    notes: noteParts.join(" ") || null,
-    truncated: truncated || pageCapHit,
-  };
+  return { chunks: textChunks(body), notes, truncated };
 }
 
 function parsePlainText(bytes: Uint8Array): ParsedImport {
@@ -160,6 +176,7 @@ export async function parseImport(
   kind: ImportKind,
   bytes: Uint8Array,
   storagePath: string,
+  maxPdfPages: number = IMPORT_CAPS.maxPdfPages,
 ): Promise<ParsedImport> {
   switch (kind) {
     case "image":
@@ -169,7 +186,7 @@ export async function parseImport(
         truncated: false,
       };
     case "pdf":
-      return parsePdf(bytes);
+      return parsePdf(bytes, maxPdfPages);
     case "text":
       return parsePlainText(bytes);
     case "zip":

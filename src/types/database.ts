@@ -263,6 +263,24 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["ai_usage_daily"]["Insert"]>;
         Relationships: [];
       };
+      feature_usage_daily: {
+        Row: {
+          user_id: string;
+          day: string;
+          feature: string;
+          count: number;
+        };
+        Insert: {
+          user_id: string;
+          day: string;
+          feature: string;
+          count?: number;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["feature_usage_daily"]["Insert"]
+        >;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           user_id: string;
@@ -451,6 +469,11 @@ export interface Database {
       };
       record_ai_call: {
         Args: Record<string, never>;
+        Returns: number;
+      };
+      /** Returns the new total for that (user, day, feature) after incrementing. */
+      record_feature_usage: {
+        Args: { p_feature: string; p_amount?: number };
         Returns: number;
       };
       /** Null return means not eligible — trial already used, or already pro. */

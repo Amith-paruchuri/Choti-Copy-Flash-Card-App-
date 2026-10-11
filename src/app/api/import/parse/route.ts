@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { requireUser } from "@/lib/auth/session";
-import { parseImport } from "@/lib/import/parse";
+import { limitsForTier } from "@/lib/billing/limits";
+import { ImportPageLimitError, parseImport } from "@/lib/import/parse";
+import { getBillingProfile } from "@/lib/queries/account";
 
 export const maxDuration = 60;
 
@@ -58,12 +60,41 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Size/page caps are tier-gated and only apply to PDF/image imports —
+  // text/zip stay ungated, same as the weekly cap in /api/import/create.
+  const gated = imp.kind === "pdf" || imp.kind === "image";
+  const { tier } = gated
+    ? await getBillingProfile()
+    : { tier: "free" as const };
+  const limits = limitsForTier(tier);
+
+  if (gated && blob.size > limits.importMaxBytes) {
+    const message = `That file is larger than your ${Math.round(limits.importMaxBytes / (1024 * 1024))} MB limit.`;
+    await supabase
+      .from("imports")
+      .update({ status: "error", error: message })
+      .eq("id", imp.id);
+    return NextResponse.json(
+      {
+        error: message,
+        limit: {
+          feature: "import_size",
+          used: blob.size,
+          cap: limits.importMaxBytes,
+          tier,
+        },
+      },
+      { status: 429 },
+    );
+  }
+
   try {
     const bytes = new Uint8Array(await blob.arrayBuffer());
     const { chunks, notes, truncated } = await parseImport(
       imp.kind,
       bytes,
       imp.storage_path,
+      limits.importMaxPages,
     );
 
     if (chunks.length === 0) {
@@ -96,6 +127,29 @@ export async function POST(request: NextRequest) {
       notes,
     });
   } catch (e) {
+    if (e instanceof ImportPageLimitError) {
+      const proCap = limitsForTier("pro").importMaxPages;
+      const message =
+        tier === "pro"
+          ? e.message
+          : `${e.message} Pro allows up to ${proCap} pages.`;
+      await supabase
+        .from("imports")
+        .update({ status: "error", error: message })
+        .eq("id", imp.id);
+      return NextResponse.json(
+        {
+          error: message,
+          limit: {
+            feature: "import_pages",
+            used: e.totalPages,
+            cap: e.maxPages,
+            tier,
+          },
+        },
+        { status: 429 },
+      );
+    }
     const message =
       e instanceof Error ? e.message : "Could not read that file.";
     await supabase

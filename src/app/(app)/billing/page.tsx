@@ -6,6 +6,7 @@ import { CancelSubscriptionButton } from "@/components/cancel-subscription-butto
 import { CheckoutButton } from "@/components/checkout-button";
 import { StartTrialButton } from "@/components/start-trial-button";
 import { Button } from "@/components/ui/button";
+import { TIER_LIMITS, type TierLimits } from "@/lib/billing/limits";
 import { canStartTrial, formatBillingDate } from "@/lib/billing/tier";
 import { getBillingProfile } from "@/lib/queries/account";
 import { createClient } from "@/lib/supabase/server";
@@ -13,19 +14,29 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Plans" };
 
-const FREE = [
+/** Same for both plans — never gated. Listed on both cards so Pro visibly includes it too. */
+const UNLIMITED_FOR_EVERYONE = [
   "Unlimited flashcards & subjects",
   "Spaced repetition (FSRS) reviews",
-  "AI flashcard & quiz generation",
-  "Imports, search, stats",
+  "Full stats & history",
+  "Search and non-PDF/image imports",
 ];
 
-const PRO = [
-  "Everything in Free",
-  "Higher AI generation limits",
-  "Priority processing for large imports",
-  "Early access to new features",
-];
+const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
+
+/** Concrete numbers straight from limits.ts — never hand-typed, so this card can't drift from what's actually enforced. */
+function tierLines(limits: TierLimits): string[] {
+  return [
+    `${limits.aiCardsPerDay} AI-generated cards/day`,
+    `${limits.aiMnemonicsPerDay} AI mnemonics/day`,
+    `${limits.aiQuizSetsPerDay} AI quiz sets/day`,
+    limits.importsPerWeek === null
+      ? "No weekly cap on PDF/image imports"
+      : `${limits.importsPerWeek} PDF/image imports/week`,
+    `PDF/image imports up to ${mb(limits.importMaxBytes)} MB, ${limits.importMaxPages} pages`,
+    limits.processingLabel,
+  ];
+}
 
 export default async function BillingPage() {
   const supabase = await createClient();
@@ -73,12 +84,14 @@ export default async function BillingPage() {
           </div>
           <p className="font-display text-2xl font-semibold">₹0</p>
           <ul className="space-y-1.5 text-sm">
-            {FREE.map((f) => (
-              <li key={f} className="flex gap-2">
-                <Check className="text-sage mt-0.5 size-4 flex-none" />
-                {f}
-              </li>
-            ))}
+            {[...UNLIMITED_FOR_EVERYONE, ...tierLines(TIER_LIMITS.free)].map(
+              (f) => (
+                <li key={f} className="flex gap-2">
+                  <Check className="text-sage mt-0.5 size-4 flex-none" />
+                  {f}
+                </li>
+              ),
+            )}
           </ul>
         </div>
 
@@ -95,12 +108,14 @@ export default async function BillingPage() {
             ₹150<span className="text-muted-foreground ml-1 text-xs">/ month</span>
           </p>
           <ul className="space-y-1.5 text-sm">
-            {PRO.map((f) => (
-              <li key={f} className="flex gap-2">
-                <Check className="text-highlight mt-0.5 size-4 flex-none" />
-                {f}
-              </li>
-            ))}
+            {[...UNLIMITED_FOR_EVERYONE, ...tierLines(TIER_LIMITS.pro)].map(
+              (f) => (
+                <li key={f} className="flex gap-2">
+                  <Check className="text-highlight mt-0.5 size-4 flex-none" />
+                  {f}
+                </li>
+              ),
+            )}
           </ul>
 
           {billing.rawTier === "pro" ? (
