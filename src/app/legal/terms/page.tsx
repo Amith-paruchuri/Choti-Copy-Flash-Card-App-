@@ -106,9 +106,17 @@ export default function TermsPage() {
         <p>
           <strong>Cancelling.</strong> You can cancel at any time from the
           Billing page. Cancellation takes effect at the end of the period you
-          have already paid for, and you keep Pro until then. If you have a
-          billing problem or believe you were charged in error, email{" "}
-          <a href={supportMailto()}>{SUPPORT_EMAIL}</a> and we will look into it.
+          have already paid for, and you keep Pro until then.
+        </p>
+        <p>
+          <strong>Refunds.</strong> If you email{" "}
+          <a href={supportMailto()}>{SUPPORT_EMAIL}</a> within 7 days of a
+          payment (including a renewal), we will refund that payment in full. If
+          you are charged twice, or charged after cancelling, we will refund the
+          extra charge in full at any time. We do not offer partial-month
+          refunds after the 7 days. Approved refunds go back to your original
+          payment method through Razorpay and can take several business days to
+          appear.
         </p>
       </LegalSection>
 
