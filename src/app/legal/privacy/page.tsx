@@ -64,8 +64,8 @@ export default function PrivacyPage() {
             application servers.
           </li>
           <li>
-            When paid plans launch, a <strong>payment processor</strong> (Stripe
-            or Razorpay) will handle billing details. We will not store full card
+            <strong>Razorpay</strong>, our payment processor, handles billing
+            details when you subscribe to a paid plan. We will not store full card
             numbers ourselves.
           </li>
         </ul>

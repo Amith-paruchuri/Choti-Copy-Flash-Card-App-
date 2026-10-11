@@ -11,7 +11,7 @@ export default function TermsPage() {
     <LegalDoc
       title="Terms of Service"
       updated={TERMS_VERSION}
-      intro="This is an early draft, generated from a standard template and pending review by a lawyer before public launch. It describes how Choti Copy works and the rules for using it. If anything here conflicts with applicable law, the law wins."
+      intro="This is an early draft, generated from a standard template and pending review by a lawyer. It describes how Choti Copy works and the rules for using it. If anything here conflicts with applicable law, the law wins."
     >
       <LegalSection heading="1. The service">
         <p>
@@ -76,14 +76,39 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="5. Subscriptions and free trial (placeholder)">
+      <LegalSection heading="5. Free plan, Pro plan and free trial">
         <p>
-          The Service currently has a single free tier with no usage limits.
-          Paid plans are not yet available. When they launch, this section will
-          set out pricing, billing cycle, any free-trial length, renewal, and
-          cancellation terms, and payment will be handled by a third-party
-          processor (Stripe or Razorpay). Nothing in this draft obliges you to
-          pay anything.
+          <strong>Free plan.</strong> Every account can use the Service for free
+          within daily and weekly limits: 30 AI-generated cards per day, 5 AI
+          mnemonics per day, 2 AI quiz sets per day, 3 file imports per week,
+          and imports of up to 5 MB and 20 PDF pages each. Limits reset on a UTC
+          calendar basis (daily at 00:00 UTC; weekly on Monday 00:00 UTC).
+        </p>
+        <p>
+          <strong>Pro plan.</strong> Pro costs ₹150 per month and raises these
+          limits to 300 AI cards per day, 100 AI mnemonics per day, 30 AI quiz
+          sets per day, unlimited weekly imports, imports of up to 50 MB and 300
+          PDF pages each, and priority processing. We may change prices or
+          limits for future billing periods and will give notice before a price
+          change applies to you.
+        </p>
+        <p>
+          <strong>Free trial.</strong> You can choose to start a one-time
+          15-day trial with Pro limits. When it ends you return to the free
+          plan; nothing you created is deleted.
+        </p>
+        <p>
+          <strong>Billing and renewal.</strong> Pro is a recurring monthly
+          subscription handled by our payment processor, Razorpay. It renews
+          automatically each month until you cancel. We do not see or store your
+          full card details.
+        </p>
+        <p>
+          <strong>Cancelling.</strong> You can cancel at any time from the
+          Billing page. Cancellation takes effect at the end of the period you
+          have already paid for, and you keep Pro until then. If you have a
+          billing problem or believe you were charged in error, email{" "}
+          <a href={supportMailto()}>{SUPPORT_EMAIL}</a> and we will look into it.
         </p>
       </LegalSection>
 
