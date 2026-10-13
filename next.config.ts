@@ -7,7 +7,7 @@ const isDev = process.env.NODE_ENV === "development";
  * over WiFi at http://192.168.x.x:3000). Add your Mac's LAN IP here — it's the
  * "Network:" address `next dev` prints on start. Only used in development.
  */
-const LAN_ORIGINS = ["192.168.1.4"];
+const LAN_ORIGINS = ["192.168.1.4", "127.0.0.1"];
 
 const nextConfig: NextConfig = {
   // Lets those origins request dev-only endpoints (assets, HMR, Server Actions).
