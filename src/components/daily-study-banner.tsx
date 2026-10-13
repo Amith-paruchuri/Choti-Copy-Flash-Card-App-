@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check, GraduationCap } from "lucide-react";
 
+import { ProgressFill } from "@/components/motion/progress-fill";
 import { DueBreakdown } from "@/components/due-breakdown";
 import { type DailyProgress, totalOverdue } from "@/lib/queries/review";
 import { dueSummary } from "@/lib/review-copy";
@@ -44,7 +45,7 @@ export function DailyStudyBanner({ progress }: { progress: DailyProgress }) {
     <div className="space-y-1.5">
       <Link
         href={href}
-        className="bg-primary text-primary-foreground flex items-center justify-between gap-3 rounded-xl border border-transparent px-4 py-3.5 transition hover:brightness-105"
+        className="lift bg-primary text-primary-foreground flex items-center justify-between gap-3 rounded-xl border border-transparent px-4 py-3.5 shadow-[0_8px_30px_-12px_var(--color-primary)] transition hover:brightness-105"
       >
         <span className="flex min-w-0 items-center gap-2.5">
           <span className="grid size-8 flex-none place-items-center rounded-lg bg-white/15">
@@ -84,9 +85,9 @@ export function DailyStudyBanner({ progress }: { progress: DailyProgress }) {
           aria-valuemax={target}
           aria-label={`${reviewedToday} of ${target} cards reviewed today`}
         >
-          <div
+          <ProgressFill
             className={goalMet ? "bg-sage h-full" : "bg-highlight h-full"}
-            style={{ width: `${Math.max(pct, reviewedToday > 0 ? 4 : 0)}%` }}
+            pct={Math.max(pct, reviewedToday > 0 ? 4 : 0)}
           />
         </div>
       )}

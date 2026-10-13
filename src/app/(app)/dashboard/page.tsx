@@ -31,11 +31,22 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto w-full max-w-2xl space-y-9 px-4 py-8">
-      {!empty && <DailyStudyBanner progress={progress} />}
+      {!empty && (
+        <div className="rise" style={{ "--i": 0 } as React.CSSProperties}>
+          <DailyStudyBanner progress={progress} />
+        </div>
+      )}
 
-      {!empty && <RecallStrip initial={recall} />}
+      {!empty && (
+        <div className="rise" style={{ "--i": 1 } as React.CSSProperties}>
+          <RecallStrip initial={recall} />
+        </div>
+      )}
 
-      <section className="space-y-4">
+      <section
+        className="rise space-y-4"
+        style={{ "--i": 2 } as React.CSSProperties}
+      >
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-xl font-semibold">Your subjects</h1>
           <div className="flex flex-wrap justify-end gap-2">

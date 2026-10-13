@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { motion } from "motion/react";
 import { toast } from "sonner";
 
 import { recordReview } from "@/actions/review";
 import { DeckCard } from "@/components/deck-card";
 import { RATINGS, RatingButtons } from "@/components/rating-buttons";
+import { Celebrate } from "@/components/motion/celebrate";
+import { CountUp } from "@/components/motion/count-up";
 import { WhyThisCard } from "@/components/why-this-card";
 import { Button } from "@/components/ui/button";
+import { SPRING_SOFT } from "@/lib/motion";
 import type { CardMemory, RatingValue } from "@/lib/srs/fsrs";
 import type { FlashcardWithSubject } from "@/lib/queries/flashcards";
 
@@ -92,11 +96,14 @@ export function ReviewDeck({ items: initialItems }: { items: ReviewCard[] }) {
   if (done) {
     const total = items.length;
     const soon = tally[1] + tally[2];
+    const good = tally[3] + tally[4];
+    const strong = total > 0 && good / total >= 0.6;
     return (
-      <div className="mx-auto max-w-md space-y-5 py-6 text-center">
-        <div className="space-y-1">
+      <div className="relative mx-auto max-w-md space-y-5 py-6 text-center">
+        {strong && <Celebrate />}
+        <div className="rise space-y-1" style={{ "--i": 0 } as React.CSSProperties}>
           <h1 className="font-display text-2xl font-semibold">
-            Session complete
+            {strong ? "Nice work. Session complete" : "Session complete"}
           </h1>
           <p className="text-muted-foreground text-sm">
             {total} card{total === 1 ? "" : "s"} reviewed
@@ -106,18 +113,24 @@ export function ReviewDeck({ items: initialItems }: { items: ReviewCard[] }) {
           </p>
         </div>
 
-        <div className="border-rule grid grid-cols-4 overflow-hidden rounded-xl border text-sm">
-          {RATINGS.map((r) => (
+        <div
+          className="rise border-rule grid grid-cols-4 overflow-hidden rounded-xl border text-sm"
+          style={{ "--i": 1 } as React.CSSProperties}
+        >
+          {RATINGS.map((r, i) => (
             <div key={r.value} className="border-rule border-r px-2 py-3 last:border-r-0">
               <p className="text-lg font-semibold tabular-nums">
-                {tally[r.value]}
+                <CountUp value={tally[r.value]} delay={0.25 + i * 0.08} />
               </p>
               <p className="text-muted-foreground text-xs">{r.label}</p>
             </div>
           ))}
         </div>
 
-        <div className="flex justify-center gap-2">
+        <div
+          className="rise flex justify-center gap-2"
+          style={{ "--i": 2 } as React.CSSProperties}
+        >
           <Button asChild size="sm">
             <Link href="/dashboard">Back to dashboard</Link>
           </Button>
@@ -146,9 +159,11 @@ export function ReviewDeck({ items: initialItems }: { items: ReviewCard[] }) {
           </div>
         </div>
         <div className="bg-secondary mt-1 h-1 overflow-hidden rounded-full">
-          <div
-            className="bg-highlight h-full rounded-full transition-[width] duration-300"
-            style={{ width: `${pct}%` }}
+          <motion.div
+            className="bg-highlight h-full rounded-full"
+            initial={false}
+            animate={{ width: `${pct}%` }}
+            transition={SPRING_SOFT}
           />
         </div>
       </div>

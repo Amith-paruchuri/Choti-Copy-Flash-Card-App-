@@ -70,9 +70,10 @@ export default async function BillingPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div
           className={cn(
-            "border-rule space-y-3 rounded-xl border p-4",
+            "rise lift border-rule space-y-3 rounded-xl border p-4",
             onFree && "ring-primary/30 ring-2",
           )}
+          style={{ "--i": 0 } as React.CSSProperties}
         >
           <div className="flex items-baseline justify-between">
             <h2 className="font-semibold">Free</h2>
@@ -95,7 +96,10 @@ export default async function BillingPage() {
           </ul>
         </div>
 
-        <div className="border-rule bg-card space-y-3 rounded-xl border p-4">
+        <div
+          className="rise lift border-highlight/40 bg-card space-y-3 rounded-xl border p-4 shadow-[0_10px_40px_-16px_var(--color-highlight)]"
+          style={{ "--i": 1 } as React.CSSProperties}
+        >
           <div className="flex items-baseline justify-between">
             <h2 className="font-semibold">Pro</h2>
             {(billing.rawTier === "pro" || inGracePeriod) && (

@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { toast } from "sonner";
 
 import {
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EASE_OUT, SPRING_SNAPPY } from "@/lib/motion";
 
 const EMPTY: AuthState = {};
 
@@ -72,6 +74,7 @@ export function AuthCard({
 }) {
   const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const reduce = useReducedMotion();
   const action =
     mode === "signin"
       ? signInWithPassword
@@ -144,7 +147,12 @@ export function AuthCard({
       </div>
 
       {pendingEmail ? (
-        <div className="space-y-4">
+        <motion.div
+          className="space-y-4"
+          initial={reduce ? false : { opacity: 0, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={SPRING_SNAPPY}
+        >
           <form action={verifyAction} className="space-y-4">
             <input type="hidden" name="next" value={next} />
             <input type="hidden" name="email" value={pendingEmail} />
@@ -189,7 +197,7 @@ export function AuthCard({
               Use a different email
             </button>
           </div>
-        </div>
+        </motion.div>
       ) : mode !== "reset" ? (
         <>
           <Tabs
@@ -245,20 +253,39 @@ export function AuthCard({
               />
             </div>
 
-            {mode === "signup" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="confirmPassword">Confirm password</Label>
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                  placeholder="Re-enter your password"
-                />
-              </div>
-            )}
+            <AnimatePresence initial={false}>
+              {mode === "signup" && (
+                <motion.div
+                  key="confirm"
+                  initial={reduce ? false : { height: 0, opacity: 0 }}
+                  animate={{
+                    height: "auto",
+                    opacity: 1,
+                    transition: { duration: 0.28, ease: EASE_OUT },
+                  }}
+                  exit={{
+                    height: 0,
+                    opacity: 0,
+                    transition: { duration: 0.2, ease: EASE_OUT },
+                  }}
+                  style={{ overflow: "hidden" }}
+                  className="-mx-1 px-1"
+                >
+                  <div className="space-y-1.5 pb-1">
+                    <Label htmlFor="confirmPassword">Confirm password</Label>
+                    <Input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      required
+                      minLength={8}
+                      placeholder="Re-enter your password"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {mode === "signup" && (
               <label className="text-muted-foreground flex items-start gap-2 text-xs">

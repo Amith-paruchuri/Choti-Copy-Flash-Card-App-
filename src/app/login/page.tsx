@@ -14,16 +14,24 @@ export default async function LoginPage(props: PageProps<"/login">) {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-8 px-6 py-12">
-      <div className="flex flex-col items-center gap-3 text-center">
+      <div
+        className="rise flex flex-col items-center gap-3 text-center"
+        style={{ "--i": 0 } as React.CSSProperties}
+      >
         <Wordmark className="text-lg" />
         <p className="text-muted-foreground max-w-xs text-sm">
           Your error notebook. Keep the concepts and questions you get wrong,
           and review them until they stick.
         </p>
       </div>
-      <AuthCard next={next} initialError={error} />
+      <div className="rise" style={{ "--i": 1 } as React.CSSProperties}>
+        <AuthCard next={next} initialError={error} />
+      </div>
 
-      <footer className="text-muted-foreground flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs">
+      <footer
+        className="rise text-muted-foreground flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs"
+        style={{ "--i": 2 } as React.CSSProperties}
+      >
         <Link href="/about" className="hover:text-foreground transition">
           About
         </Link>

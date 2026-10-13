@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo } from "react";
+import { motion, useReducedMotion } from "motion/react";
 
 import {
   projectIntervals,
   type CardMemory,
   type RatingValue,
 } from "@/lib/srs/fsrs";
+import { SPRING_SNAPPY } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 export const RATINGS: {
@@ -38,16 +40,22 @@ export function RatingButtons({
   disabled?: boolean;
 }) {
   const intervals = useMemo(() => projectIntervals(memory), [memory]);
+  const reduce = useReducedMotion();
   return (
     <div className="grid grid-cols-4 gap-1.5">
-      {RATINGS.map((r) => (
-        <button
+      {RATINGS.map((r, i) => (
+        <motion.button
           key={r.value}
           type="button"
           disabled={disabled}
           onClick={() => onRate(r.value)}
+          initial={reduce ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...SPRING_SNAPPY, delay: reduce ? 0 : i * 0.045 }}
+          whileHover={reduce ? undefined : { y: -2, scale: 1.03 }}
+          whileTap={reduce ? undefined : { scale: 0.93 }}
           className={cn(
-            "flex touch-manipulation flex-col items-center gap-0.5 rounded-lg border px-1 py-2 transition hover:brightness-[0.97] active:scale-[0.98] active:brightness-95 disabled:opacity-60 [-webkit-tap-highlight-color:transparent]",
+            "flex touch-manipulation flex-col items-center gap-0.5 rounded-lg border px-1 py-2 disabled:opacity-60 [-webkit-tap-highlight-color:transparent]",
             r.className,
           )}
         >
@@ -55,7 +63,7 @@ export function RatingButtons({
           <span className="text-[10px] opacity-70 tabular-nums">
             {intervals[r.value]}
           </span>
-        </button>
+        </motion.button>
       ))}
     </div>
   );

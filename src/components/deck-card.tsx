@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { GitBranch, RotateCcw } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { CardMnemonic } from "@/components/card-mnemonic";
 import { CardRelated } from "@/components/card-related";
@@ -9,6 +10,7 @@ import { FlashcardActions } from "@/components/flashcard-actions";
 import { MechanismFlow } from "@/components/mechanism-flow";
 import { SubjectIcon } from "@/components/subject-icon";
 import { parseMechanism } from "@/lib/mechanism";
+import { EASE_IN, EASE_OUT } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { RelatedCard } from "@/lib/queries/flashcard-links";
 import type { FlashcardWithSubject } from "@/lib/queries/flashcards";
@@ -38,6 +40,7 @@ export function DeckCard({
   const [asText, setAsText] = useState(false);
   const showFlow = steps && !asText;
   const color = card.subject?.color ?? "var(--color-muted-foreground)";
+  const reduce = useReducedMotion();
 
   return (
     <div className="relative mx-auto max-w-md">
@@ -55,7 +58,22 @@ export function DeckCard({
         />
       )}
 
-      <div
+      {/* perspective parent so the flip reads as a real card turning over */}
+      <div style={{ perspective: 1200 }}>
+      <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={flipped ? "back" : "front"}
+        initial={reduce ? { opacity: 0 } : { rotateY: -80, opacity: 0.2 }}
+        animate={
+          reduce
+            ? { opacity: 1 }
+            : { rotateY: 0, opacity: 1, transition: { duration: 0.22, ease: EASE_OUT } }
+        }
+        exit={
+          reduce
+            ? { opacity: 0 }
+            : { rotateY: 80, opacity: 0.2, transition: { duration: 0.16, ease: EASE_IN } }
+        }
         className="dogear border-rule bg-card relative flex h-[19rem] flex-col rounded-xl border p-5 shadow-[0_1px_2px_rgba(42,38,34,0.05),0_10px_30px_-12px_rgba(42,38,34,0.18)] sm:h-[22rem]"
         style={{ "--dogear-color": color } as React.CSSProperties}
       >
@@ -153,6 +171,8 @@ export function DeckCard({
             </span>
           </button>
         )}
+      </motion.div>
+      </AnimatePresence>
       </div>
     </div>
   );

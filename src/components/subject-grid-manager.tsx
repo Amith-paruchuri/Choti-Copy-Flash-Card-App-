@@ -138,7 +138,7 @@ export function SubjectGridManager({
       </div>
 
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {subjects.map((s) => {
+        {subjects.map((s, idx) => {
           const empty = s.cardCount === 0;
           const isSelected = selected.has(s.id);
           const inner = (
@@ -190,7 +190,11 @@ export function SubjectGridManager({
           );
 
           return (
-            <li key={s.id}>
+            <li
+              key={s.id}
+              className="rise"
+              style={{ "--i": Math.min(idx, 10) } as React.CSSProperties}
+            >
               {selecting ? (
                 <button
                   type="button"
