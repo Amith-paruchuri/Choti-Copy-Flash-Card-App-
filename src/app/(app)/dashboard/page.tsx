@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BookText } from "lucide-react";
 
+import { HomeGreeting } from "@/components/home-greeting";
 import { DailyStudyBanner } from "@/components/daily-study-banner";
 import { FolderDialog } from "@/components/folder-dialog";
 import { RecallStrip } from "@/components/recall-strip";
@@ -12,20 +13,37 @@ import {
   listSubjectsForPicker,
   listSubjectsWithCounts,
 } from "@/lib/queries/subjects";
+import { getActivityHeatmap } from "@/lib/queries/activity";
+import { createClient } from "@/lib/supabase/server";
 import { getRecallCards } from "@/lib/queries/recall";
 import { getDailyProgress } from "@/lib/queries/review";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const [subjects, allSubjects, recall, resortCandidates, progress] =
-    await Promise.all([
+  const supabase = await createClient();
+  const [
+    subjects,
+    allSubjects,
+    recall,
+    resortCandidates,
+    progress,
+    activity,
+    { data: auth },
+  ] = await Promise.all([
       listSubjectsWithCounts(),
       listSubjectsForPicker(),
       getRecallCards(),
       getResortCandidates(),
       getDailyProgress(),
+      getActivityHeatmap(4),
+      supabase.auth.getUser(),
     ]);
+  const meta = auth.user?.user_metadata;
+  const name =
+    (meta?.full_name as string | undefined) ??
+    (meta?.name as string | undefined) ??
+    null;
   const canResort = resortCandidates.length >= 2;
   const empty = subjects.length === 0;
 
@@ -33,6 +51,12 @@ export default async function DashboardPage() {
     <main className="mx-auto w-full max-w-2xl space-y-9 px-4 py-8">
       {!empty && (
         <div className="rise" style={{ "--i": 0 } as React.CSSProperties}>
+          <HomeGreeting name={name} streak={activity.currentStreak} />
+        </div>
+      )}
+
+      {!empty && (
+        <div className="rise" style={{ "--i": 1 } as React.CSSProperties}>
           <DailyStudyBanner progress={progress} />
         </div>
       )}
