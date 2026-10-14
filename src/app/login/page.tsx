@@ -21,11 +21,11 @@ export default async function LoginPage(props: PageProps<"/login">) {
       >
         <Wordmark className="text-lg" />
         <h1 className="font-display text-4xl leading-[1.05] tracking-tight text-balance sm:text-5xl lg:text-6xl">
-          Stop re-learning what you already studied.
+          Beat the forgetting curve.
         </h1>
         <p className="text-muted-foreground max-w-md text-base text-pretty">
-          Save the concepts you get wrong. Choti Copy brings each one back just
-          before you would forget it.
+          Every concept you miss comes back right before it slips away. Study it
+          less, and still know it on exam day.
         </p>
         <ForgettingHero />
       </section>

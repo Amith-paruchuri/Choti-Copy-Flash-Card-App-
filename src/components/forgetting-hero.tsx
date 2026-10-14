@@ -21,9 +21,10 @@ import {
 // Each segment is one forgetting run: it starts at 100% at `s`, decays to
 // `end` by `e`, then a review resets it to 100%.
 const SEGMENTS = [
-  { s: 0, e: 0.25, end: 0.5, label: "Day 1" },
-  { s: 0.25, e: 0.55, end: 0.62, label: "Day 3" },
-  { s: 0.55, e: 0.9, end: 0.78, label: "Day 8" },
+  { s: 0, e: 0.2, end: 0.5, label: "Day 1" },
+  { s: 0.2, e: 0.41, end: 0.6, label: "Day 3" },
+  { s: 0.41, e: 0.66, end: 0.72, label: "Day 8" },
+  { s: 0.66, e: 0.92, end: 0.84, label: "Day 21" },
 ] as const;
 const REVIEW_TIMES = SEGMENTS.map((seg) => seg.e);
 const LOOP_SECONDS = 11;
@@ -50,12 +51,13 @@ function pulse(t: number): number {
 
 const W = 320;
 const H = 120;
-const PAD_X = 10;
+const PAD_L = 40;
+const PAD_R = 10;
 const TOP = 12;
 const BOTTOM = 22;
 const R_MIN = 0.4;
 
-const xAt = (t: number) => PAD_X + t * (W - PAD_X * 2);
+const xAt = (t: number) => PAD_L + t * (W - PAD_L - PAD_R);
 const yAt = (r: number) =>
   TOP + ((1 - Math.max(r, R_MIN)) / (1 - R_MIN)) * (H - TOP - BOTTOM);
 
@@ -139,9 +141,41 @@ export function ForgettingHero({ className }: { className?: string }) {
           </clipPath>
         </defs>
 
+        {/* y axis: how much of the card you still remember */}
+        {[1, 0.7, 0.4].map((r) => (
+          <g key={r}>
+            <line
+              x1={PAD_L}
+              x2={W - PAD_R}
+              y1={yAt(r)}
+              y2={yAt(r)}
+              stroke="var(--color-rule)"
+              strokeDasharray={r === 1 ? undefined : "2 4"}
+              opacity={r === 1 ? 0 : 0.7}
+            />
+            <text
+              x={PAD_L - 6}
+              y={yAt(r) + 3}
+              textAnchor="end"
+              fontSize={9}
+              fill="var(--color-muted-foreground)"
+            >
+              {Math.round(r * 100)}%
+            </text>
+          </g>
+        ))}
+        <text
+          transform={`translate(9 ${(yAt(1) + yAt(0.4)) / 2}) rotate(-90)`}
+          textAnchor="middle"
+          fontSize={9}
+          fill="var(--color-muted-foreground)"
+        >
+          Memory
+        </text>
+
         {/* faint guide lines */}
-        <line x1={PAD_X} x2={W - PAD_X} y1={yAt(1)} y2={yAt(1)} stroke="var(--color-rule)" strokeDasharray="2 4" />
-        <line x1={PAD_X} x2={W - PAD_X} y1={H - BOTTOM} y2={H - BOTTOM} stroke="var(--color-rule)" />
+        <line x1={PAD_L} x2={W - PAD_R} y1={yAt(1)} y2={yAt(1)} stroke="var(--color-rule)" strokeDasharray="2 4" />
+        <line x1={PAD_L} x2={W - PAD_R} y1={H - BOTTOM} y2={H - BOTTOM} stroke="var(--color-rule)" />
 
         <path
           d={CURVE}
