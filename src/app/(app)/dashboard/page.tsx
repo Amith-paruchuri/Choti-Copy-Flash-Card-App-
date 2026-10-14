@@ -47,9 +47,9 @@ export default async function DashboardPage() {
         className="rise space-y-4"
         style={{ "--i": 2 } as React.CSSProperties}
       >
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-xl font-semibold">Your subjects</h1>
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
             <FolderDialog mode="create" parentId={null}>
               <Button size="sm" variant="outline">
                 New folder

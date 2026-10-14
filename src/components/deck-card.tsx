@@ -74,7 +74,7 @@ export function DeckCard({
             ? { opacity: 0 }
             : { rotateY: 80, opacity: 0.2, transition: { duration: 0.16, ease: EASE_IN } }
         }
-        className="dogear border-rule bg-card relative flex h-[19rem] flex-col rounded-xl border p-5 shadow-[0_1px_2px_rgba(42,38,34,0.05),0_10px_30px_-12px_rgba(42,38,34,0.18)] sm:h-[22rem]"
+        className="dogear border-rule bg-card relative flex h-[min(30rem,calc(100dvh-14rem))] min-h-[19rem] flex-col rounded-xl border p-5 shadow-[0_1px_2px_rgba(42,38,34,0.05),0_10px_30px_-12px_rgba(42,38,34,0.18)] sm:h-[22rem]"
         style={{ "--dogear-color": color } as React.CSSProperties}
       >
         <span className="text-muted-foreground flex items-center gap-1.5 text-xs">

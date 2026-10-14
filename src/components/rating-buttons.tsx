@@ -55,7 +55,7 @@ export function RatingButtons({
           whileHover={reduce ? undefined : { y: -2, scale: 1.03 }}
           whileTap={reduce ? undefined : { scale: 0.93 }}
           className={cn(
-            "flex touch-manipulation flex-col items-center gap-0.5 rounded-lg border px-1 py-2 disabled:opacity-60 [-webkit-tap-highlight-color:transparent]",
+            "flex touch-manipulation flex-col items-center gap-0.5 min-h-14 justify-center rounded-xl border px-1 py-2.5 disabled:opacity-60 [-webkit-tap-highlight-color:transparent]",
             r.className,
           )}
         >

@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion, useReducedMotion } from "motion/react";
 import { House, Layers, LineChart, ListChecks, CircleUser } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { SPRING_SNAPPY } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 type Tab = {
@@ -36,6 +38,7 @@ function isActive(pathname: string, tab: Tab): boolean {
  */
 export function BottomNav() {
   const pathname = usePathname();
+  const reduce = useReducedMotion();
 
   return (
     <nav
@@ -53,30 +56,35 @@ export function BottomNav() {
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex touch-manipulation flex-col items-center gap-1 px-1 pt-2.5 pb-2 text-[11px] font-medium tracking-tight transition-colors active:scale-95 active:opacity-70 [-webkit-tap-highlight-color:transparent]",
+                  "relative flex touch-manipulation flex-col items-center gap-1 px-1 pt-2 pb-1.5 text-[11px] font-medium tracking-tight transition-colors active:scale-95 active:opacity-70 [-webkit-tap-highlight-color:transparent]",
                   active
                     ? "text-ink"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {/* turmeric highlighter tab on the active item */}
-                <span
-                  className={cn(
-                    "bg-highlight absolute top-0 h-0.5 w-8 rounded-full transition-opacity",
-                    active ? "opacity-100" : "opacity-0",
+                <span className="relative grid place-items-center rounded-full px-4 py-1">
+                  {active && (
+                    <motion.span
+                      layoutId="nav-pill"
+                      aria-hidden
+                      className="bg-ink-tint absolute inset-0 rounded-full"
+                      transition={reduce ? { duration: 0 } : SPRING_SNAPPY}
+                    />
                   )}
-                />
-                <span
-                  className={cn(
-                    "grid place-items-center rounded-lg px-3 py-0.5 transition-colors",
-                    active && "bg-ink-tint",
-                  )}
-                >
-                  <Icon
-                    className="size-5"
-                    strokeWidth={active ? 2.4 : 2}
-                    aria-hidden
-                  />
+                  <motion.span
+                    className="relative grid place-items-center"
+                    animate={
+                      active && !reduce ? { y: [0, -3, 0] } : { y: 0 }
+                    }
+                    transition={{ duration: 0.32, ease: "easeOut" }}
+                    key={active ? "on" : "off"}
+                  >
+                    <Icon
+                      className="size-[22px]"
+                      strokeWidth={active ? 2.4 : 2}
+                      aria-hidden
+                    />
+                  </motion.span>
                 </span>
                 {tab.label}
               </Link>

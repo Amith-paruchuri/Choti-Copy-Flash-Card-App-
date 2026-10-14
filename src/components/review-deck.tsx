@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion } from "motion/react";
+import {
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+} from "motion/react";
 import { toast } from "sonner";
 
 import { recordReview } from "@/actions/review";
@@ -19,6 +24,83 @@ import type { FlashcardWithSubject } from "@/lib/queries/flashcards";
 export interface ReviewCard {
   card: FlashcardWithSubject;
   memory: CardMemory | null;
+}
+
+const SWIPE_DISTANCE = 110;
+const SWIPE_VELOCITY = 600;
+
+/** A tiny tap of haptics where supported (Android); no-op elsewhere. */
+function tick(ms = 8) {
+  try {
+    navigator.vibrate?.(ms);
+  } catch {
+    /* unsupported */
+  }
+}
+
+/**
+ * Wraps the card so a revealed card can be thrown: right = Good, left =
+ * Again. Buttons stay as the accessible path; this is the thumb shortcut.
+ */
+function SwipeToRate({
+  enabled,
+  onRate,
+  children,
+}: {
+  enabled: boolean;
+  onRate: (rating: RatingValue) => void;
+  children: React.ReactNode;
+}) {
+  const reduce = useReducedMotion();
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-220, 0, 220], [-9, 0, 9]);
+  const goodOpacity = useTransform(x, [20, 110], [0, 1]);
+  const againOpacity = useTransform(x, [-110, -20], [1, 0]);
+  const canDrag = enabled && !reduce;
+
+  return (
+    <div className="relative">
+      <motion.div
+        drag={canDrag ? "x" : false}
+        dragSnapToOrigin
+        dragElastic={0.7}
+        dragMomentum={false}
+        style={{ x, rotate }}
+        onDragEnd={(_, info) => {
+          const dist = info.offset.x;
+          const vel = info.velocity.x;
+          if (dist > SWIPE_DISTANCE || vel > SWIPE_VELOCITY) {
+            tick(12);
+            onRate(3);
+          } else if (dist < -SWIPE_DISTANCE || vel < -SWIPE_VELOCITY) {
+            tick(12);
+            onRate(1);
+          }
+        }}
+        className="touch-pan-y"
+      >
+        {children}
+      </motion.div>
+      {canDrag && (
+        <>
+          <motion.div
+            aria-hidden
+            style={{ opacity: goodOpacity }}
+            className="bg-sage text-background pointer-events-none absolute top-4 left-4 z-10 rounded-full px-3 py-1 text-xs font-semibold shadow-lg"
+          >
+            Good
+          </motion.div>
+          <motion.div
+            aria-hidden
+            style={{ opacity: againOpacity }}
+            className="bg-clay text-background pointer-events-none absolute top-4 right-4 z-10 rounded-full px-3 py-1 text-xs font-semibold shadow-lg"
+          >
+            Again
+          </motion.div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function ReviewDeck({ items: initialItems }: { items: ReviewCard[] }) {
@@ -173,24 +255,35 @@ export function ReviewDeck({ items: initialItems }: { items: ReviewCard[] }) {
         className={round > 0 ? "deck-slide" : undefined}
         style={{ "--dir": 1 } as React.CSSProperties}
       >
-        <DeckCard
-          card={current.card}
-          flipped={flipped}
-          onFlip={() => setFlipped((f) => !f)}
-          remaining={items.length - 1 - index}
-          footer={
-            <RatingButtons memory={current.memory} onRate={rate} />
-          }
-        />
+        <SwipeToRate enabled={flipped} onRate={rate}>
+          <DeckCard
+            card={current.card}
+            flipped={flipped}
+            onFlip={() => {
+              tick(6);
+              setFlipped((f) => !f);
+            }}
+            remaining={items.length - 1 - index}
+            footer={
+              <RatingButtons
+                memory={current.memory}
+                onRate={(r) => {
+                  tick(8);
+                  rate(r);
+                }}
+              />
+            }
+          />
+        </SwipeToRate>
       </div>
 
       {!flipped ? (
         <p className="text-muted-foreground text-center text-xs">
-          Tap the card or press Space to reveal
+          Tap the card to reveal
         </p>
       ) : (
         <p className="text-muted-foreground text-center text-xs">
-          How well did you recall it? · keys 1–4
+          Swipe right if you knew it, left if not · or tap below
         </p>
       )}
     </div>
