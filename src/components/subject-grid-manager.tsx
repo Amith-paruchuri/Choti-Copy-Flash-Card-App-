@@ -7,6 +7,7 @@ import { Check, FolderInput, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { moveSubjects } from "@/actions/subjects";
+import { MasteryRing } from "@/components/motion/mastery-ring";
 import { SubjectIcon } from "@/components/subject-icon";
 import { SubjectSelect, type SubjectOption } from "@/components/subject-select";
 import { Button } from "@/components/ui/button";
@@ -35,8 +36,11 @@ function DividerTab({ color, icon }: { color: string; icon: string | null }) {
 export function SubjectGridManager({
   subjects,
   allSubjects,
+  mastery = {},
 }: {
   subjects: SubjectWithCount[];
+  /** top-level subject id → mean mastery 0–100 (reviewed cards only) */
+  mastery?: Record<string, number>;
   /** Every folder, DFS order with 1-based depth — for the destination picker. */
   allSubjects: PickerSubject[];
 }) {
@@ -164,6 +168,15 @@ export function SubjectGridManager({
               ) : (
                 <span className="text-muted-foreground text-xs tabular-nums">
                   {s.cardCount} {s.cardCount === 1 ? "card" : "cards"}
+                </span>
+              )}
+              {!selecting && !empty && mastery[s.id] !== undefined && (
+                <span className="absolute top-2 right-2.5">
+                  <MasteryRing
+                    pct={mastery[s.id]}
+                    color={s.color}
+                    delay={0.25 + Math.min(idx, 10) * 0.05}
+                  />
                 </span>
               )}
               {selecting && (

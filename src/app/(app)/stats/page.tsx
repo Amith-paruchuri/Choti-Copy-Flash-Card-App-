@@ -13,6 +13,7 @@ import {
 import { ForgettingCurveChart } from "@/components/forgetting-curve-chart";
 import { Heatmap } from "@/components/heatmap";
 import { ReviewActivityChart } from "@/components/review-activity-chart";
+import { WeekHero } from "@/components/week-hero";
 import { SubjectIcon } from "@/components/subject-icon";
 import { SubjectMasteryChart } from "@/components/subject-mastery-chart";
 import { SubjectStatsExplorer } from "@/components/subject-stats-explorer";
@@ -147,6 +148,15 @@ export default async function StatsPage() {
             : `${s.totalCards} cards in. Review a few and watch this fill in.`}
         </p>
       </header>
+
+      <WeekHero
+        week={s.week}
+        focus={
+          s.weakest[0]
+            ? { id: s.weakest[0].id, name: s.weakest[0].name }
+            : null
+        }
+      />
 
       <section className="grid grid-cols-3 gap-3">
         <StatTile

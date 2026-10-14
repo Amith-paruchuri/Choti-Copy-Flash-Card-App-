@@ -24,7 +24,13 @@ export function HomeGreeting({
   streak: number;
 }) {
   const hour = useSyncExternalStore(noop, clientHour, serverHour);
-  const first = name?.trim().split(/\s+/)[0] ?? null;
+  const raw = name?.trim().split(/\s+/)[0] ?? null;
+  // Some sign-in providers return names in ALL CAPS; show them as a name.
+  const first = raw
+    ? raw === raw.toUpperCase()
+      ? raw.charAt(0) + raw.slice(1).toLowerCase()
+      : raw
+    : null;
 
   return (
     <div className="flex items-center justify-between gap-3">

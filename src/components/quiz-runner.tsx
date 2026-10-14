@@ -7,7 +7,8 @@ import {
   useState,
   useTransition,
 } from "react";
-import { Check, Clock, Flag, RefreshCw, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { Check, Clock, Flag, Flame, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { recordReview } from "@/actions/review";
@@ -26,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { SPRING_SNAPPY, SPRING_SOFT } from "@/lib/motion";
 import { ratingForQuiz } from "@/lib/srs/fsrs";
 import { cn } from "@/lib/utils";
 import type { QuizSessionItem } from "@/actions/quiz";
@@ -69,6 +71,7 @@ export function QuizRunner({
   onFinish: (results: QuizResult[], meta: QuizFinishMeta) => void;
 }) {
   const exam = mode === "exam";
+  const reduce = useReducedMotion();
 
   const [items, setItems] = useState(initialItems);
   const [index, setIndex] = useState(0);
@@ -94,6 +97,9 @@ export function QuizRunner({
   const correct = picked === item?.question.correctAnswer;
   const doneCount = Object.keys(answers).length;
   const rightCount = Object.values(answers).filter((a) => a.correct).length;
+  // consecutive right answers ending at the latest answered question
+  let combo = 0;
+  for (let i = doneCount - 1; i >= 0 && answers[i]?.correct; i--) combo += 1;
 
   const finish = useCallback(
     (opts?: { scope?: "all" | "reached"; final?: Record<number, Answer> }) => {
@@ -267,22 +273,36 @@ export function QuizRunner({
           )}
         </div>
         <div className="bg-secondary mt-1 h-1 overflow-hidden rounded-full">
-          <div
+          <motion.div
             className={cn(
-              "h-full rounded-full transition-[width] duration-300",
+              "h-full rounded-full",
               lowTime ? "bg-clay" : "bg-highlight",
             )}
-            style={{
+            initial={false}
+            animate={{
               width:
                 remaining !== null && timeLimit?.kind === "overall"
                   ? `${100 - (remaining / timeLimit.seconds) * 100}%`
                   : `${pct}%`,
             }}
+            transition={remaining !== null ? { duration: 0.25 } : SPRING_SOFT}
           />
         </div>
       </div>
 
-      <div
+      <motion.div
+        key={index}
+        initial={reduce ? false : { opacity: 0, y: 16 }}
+        animate={
+          reduce
+            ? { opacity: 1 }
+            : revealed
+              ? correct
+                ? { opacity: 1, y: 0, x: 0, scale: [1, 1.02, 1] }
+                : { opacity: 1, y: 0, x: [0, -9, 9, -6, 6, 0] }
+              : { opacity: 1, y: 0, x: 0, scale: 1 }
+        }
+        transition={{ duration: revealed ? 0.4 : 0.28, ease: "easeOut" }}
         className="dogear border-rule bg-card relative space-y-4 rounded-xl border p-5 shadow-[0_1px_2px_rgba(42,38,34,0.05),0_10px_30px_-12px_rgba(42,38,34,0.18)]"
         style={
           {
@@ -307,7 +327,24 @@ export function QuizRunner({
               <span className="text-muted-foreground/70">· fill the blank</span>
             )}
           </span>
-          {!exam && <WhyThisCard memory={item.card.memory} />}
+          <div className="flex items-center gap-2">
+            <AnimatePresence>
+              {!exam && combo >= 2 && (
+                <motion.span
+                  key={combo}
+                  initial={reduce ? false : { scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={SPRING_SNAPPY}
+                  className="bg-clay-tint text-clay inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums"
+                >
+                  <Flame className="size-3" aria-hidden />
+                  {combo} in a row
+                </motion.span>
+              )}
+            </AnimatePresence>
+            {!exam && <WhyThisCard memory={item.card.memory} />}
+          </div>
         </div>
 
         <p className="font-display text-lg leading-snug font-semibold text-balance">
@@ -400,7 +437,7 @@ export function QuizRunner({
             </Button>
           </div>
         )}
-      </div>
+      </motion.div>
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-muted-foreground text-xs">

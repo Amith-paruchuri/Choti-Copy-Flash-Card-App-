@@ -5,6 +5,7 @@ import { BookText } from "lucide-react";
 import { HomeGreeting } from "@/components/home-greeting";
 import { DailyStudyBanner } from "@/components/daily-study-banner";
 import { FolderDialog } from "@/components/folder-dialog";
+import { SubjectIcon } from "@/components/subject-icon";
 import { RecallStrip } from "@/components/recall-strip";
 import { SubjectGridManager } from "@/components/subject-grid-manager";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import {
 } from "@/lib/queries/subjects";
 import { getActivityHeatmap } from "@/lib/queries/activity";
 import { createClient } from "@/lib/supabase/server";
+import { getStats } from "@/lib/queries/stats";
 import { getRecallCards } from "@/lib/queries/recall";
 import { getDailyProgress } from "@/lib/queries/review";
 
@@ -29,6 +31,7 @@ export default async function DashboardPage() {
     resortCandidates,
     progress,
     activity,
+    stats,
     { data: auth },
   ] = await Promise.all([
       listSubjectsWithCounts(),
@@ -37,8 +40,16 @@ export default async function DashboardPage() {
       getResortCandidates(),
       getDailyProgress(),
       getActivityHeatmap(4),
+      getStats(),
       supabase.auth.getUser(),
     ]);
+  const mastery: Record<string, number> = {};
+  for (const st of stats.subjects) {
+    if (st.parentId === null && st.cards - st.fresh > 0) {
+      mastery[st.id] = Math.round(st.mastery);
+    }
+  }
+  const focus = stats.weakest[0] ?? null;
   const meta = auth.user?.user_metadata;
   const name =
     (meta?.full_name as string | undefined) ??
@@ -67,9 +78,38 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {!empty && focus && (
+        <div className="rise" style={{ "--i": 2 } as React.CSSProperties}>
+          <Link
+            href={`/subjects/${focus.id}`}
+            className="lift border-rule bg-card flex items-center gap-3 rounded-2xl border px-4 py-3.5"
+          >
+            <span
+              className="grid size-10 flex-none place-items-center rounded-xl text-white"
+              style={{ backgroundColor: focus.color }}
+            >
+              <SubjectIcon icon={focus.icon} className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="text-muted-foreground block text-xs">
+                Needs attention
+              </span>
+              <span className="block truncate text-sm font-semibold">
+                {focus.path.length > 1
+                  ? focus.path.slice(-2).join(" › ")
+                  : focus.name}
+              </span>
+            </span>
+            <span className="text-ink flex-none text-sm font-medium">
+              {Math.round(focus.confidence * 100)}% recall →
+            </span>
+          </Link>
+        </div>
+      )}
+
       <section
         className="rise space-y-4"
-        style={{ "--i": 2 } as React.CSSProperties}
+        style={{ "--i": 3 } as React.CSSProperties}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-xl font-semibold">Your subjects</h1>
@@ -134,7 +174,11 @@ export default async function DashboardPage() {
             </div>
           </div>
         ) : (
-          <SubjectGridManager subjects={subjects} allSubjects={allSubjects} />
+          <SubjectGridManager
+            subjects={subjects}
+            allSubjects={allSubjects}
+            mastery={mastery}
+          />
         )}
       </section>
     </main>

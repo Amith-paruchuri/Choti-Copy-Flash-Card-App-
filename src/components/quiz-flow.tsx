@@ -1,5 +1,7 @@
 "use client";
 
+import { Celebrate } from "@/components/motion/celebrate";
+import { CountUp } from "@/components/motion/count-up";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
@@ -283,10 +285,11 @@ export function QuizFlow({
     const entries = entriesFrom(results);
 
     return (
-      <div className="mx-auto max-w-md space-y-6 py-4">
-        <div className="text-center">
-          <p className="font-display text-3xl font-semibold tabular-nums">
-            {right} / {total}
+      <div className="relative mx-auto max-w-md space-y-6 py-4">
+        {total > 0 && right / total >= 0.7 && <Celebrate />}
+        <div className="rise text-center">
+          <p className="font-display text-4xl font-semibold tabular-nums">
+            <CountUp value={right} /> / {total}
           </p>
           <p className="text-muted-foreground text-sm">
             {total > 0 ? Math.round((right / total) * 100) : 0}% correct ·{" "}

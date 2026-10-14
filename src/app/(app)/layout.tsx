@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { FirstRun } from "@/components/first-run";
+import { QuickAddSheet } from "@/components/quick-add-sheet";
+import { listSubjects } from "@/lib/queries/subjects";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -16,6 +18,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  const subjects = await listSubjects();
 
   const name =
     (user.user_metadata?.full_name as string | undefined) ??
@@ -34,6 +38,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       >
         {children}
       </div>
+      <QuickAddSheet subjects={subjects} />
       <BottomNav />
       <FirstRun />
     </div>
