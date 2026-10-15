@@ -93,20 +93,27 @@ export default function TermsPage() {
           change applies to you.
         </p>
         <p>
-          <strong>Free trial.</strong> You can choose to start a one-time
-          15-day trial with Pro limits. When it ends you return to the free
-          plan; nothing you created is deleted.
+          <strong>Free trial.</strong> Each account can choose a one-time
+          15-day trial with Pro limits. To start it you approve a recurring
+          payment (autopay) with Razorpay using a card or UPI. You are not
+          charged during the 15 days. If you do not turn autopay off before the
+          trial ends, ₹150 is charged automatically on day 15 and then every
+          month. If you turn autopay off before the trial ends, you keep the
+          trial until its end date, you are not charged, and you return to the
+          free plan; nothing you created is deleted. Your bank or Razorpay may
+          show a small verification amount when you approve the payment.
         </p>
         <p>
           <strong>Billing and renewal.</strong> Pro is a recurring monthly
-          subscription handled by our payment processor, Razorpay. It renews
-          automatically each month until you cancel. We do not see or store your
-          full card details.
+          subscription handled by our payment processor, Razorpay, and renews
+          automatically each month until you cancel. We do not see or store
+          your full card details.
         </p>
         <p>
-          <strong>Cancelling.</strong> You can cancel at any time from the
-          Billing page. Cancellation takes effect at the end of the period you
-          have already paid for, and you keep Pro until then.
+          <strong>Cancelling.</strong> You can turn autopay off or cancel at any
+          time from the Plans page. During a trial, cancelling means no charge
+          is ever made. After a paid month, cancelling takes effect at the end
+          of the period you have already paid for, and you keep Pro until then.
         </p>
         <p>
           <strong>Refunds.</strong> If you email{" "}

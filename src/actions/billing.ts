@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/session";
 import {
   cancelSubscription as cancelRazorpaySubscription,
   createSubscription,
+  fetchSubscription,
   verifyCheckoutSignature,
 } from "@/lib/billing/razorpay";
 import { shouldGrantProOnVerifiedCheckout } from "@/lib/billing/tier";
@@ -16,30 +17,7 @@ import { actionError, type ActionResult } from "@/actions/types";
 
 const TOTAL_BILLING_CYCLES = 120; // 10 years of monthly cycles — Razorpay requires a finite count.
 
-/**
- * Starts the caller's one 15-day no-card trial. Delegates the eligibility
- * check to `start_trial()` (migration 0022) — a single atomic DB update, so
- * there's no way to call this twice and extend/reset a trial already used.
- * A null return means the account already has a trial on record (active or
- * lapsed) or is already on a real paid subscription.
- */
-export async function startTrial(): Promise<
-  ActionResult<{ trialEndsAt: string }>
-> {
-  const { supabase } = await requireUser();
-
-  const { data, error } = await supabase.rpc("start_trial");
-  if (error) {
-    return actionError("Couldn't start your trial — try again in a moment.");
-  }
-  if (!data) {
-    return actionError("You've already used your trial, or you're on Pro.");
-  }
-
-  revalidatePath("/account");
-  revalidatePath("/billing");
-  return { ok: true, data: { trialEndsAt: data } };
-}
+const TRIAL_DAYS = 15;
 
 /**
  * Creates a Razorpay Subscription for the caller and returns what
@@ -49,9 +27,9 @@ export async function startTrial(): Promise<
  * can find this user later, but `subscription_tier` only ever changes inside
  * the webhook handler, which is the sole source of truth for paid access.
  */
-export async function startCheckout(): Promise<
-  ActionResult<{ subscriptionId: string; keyId: string }>
-> {
+export async function startCheckout(
+  kind: "pro" | "trial" = "pro",
+): Promise<ActionResult<{ subscriptionId: string; keyId: string }>> {
   const { user, supabase } = await requireUser();
 
   // Basic abuse guard: a double-click or a retry loop shouldn't be able to
@@ -76,7 +54,9 @@ export async function startCheckout(): Promise<
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("subscription_tier, current_period_end")
+    .select(
+      "subscription_tier, current_period_end, trial_ends_at, subscription_id",
+    )
     .maybeSingle();
   const rawTier = profile?.subscription_tier ?? "free";
   const inGracePeriod =
@@ -96,6 +76,29 @@ export async function startCheckout(): Promise<
     );
   }
 
+  // A trial that already has an autopay mandate will start charging on its
+  // own at the end of the trial. A second subscription on top of it would
+  // bill the same person twice, so point them at the existing one instead.
+  if (
+    rawTier === "trialing" &&
+    profile?.subscription_id &&
+    profile.trial_ends_at &&
+    new Date(profile.trial_ends_at).getTime() > Date.now()
+  ) {
+    return actionError(
+      "Your free trial is already set to start billing automatically when it ends.",
+    );
+  }
+
+  // One trial per account, ever — used or lapsed counts.
+  if (kind === "trial" && profile?.trial_ends_at) {
+    return actionError("You've already used your free trial.");
+  }
+  const startAt =
+    kind === "trial"
+      ? Math.floor(Date.now() / 1000) + TRIAL_DAYS * 24 * 60 * 60
+      : undefined;
+
   let subscription;
   try {
     subscription = await createSubscription(
@@ -104,7 +107,8 @@ export async function startCheckout(): Promise<
       {
         planId: serverEnv.razorpayPlanId,
         totalCount: TOTAL_BILLING_CYCLES,
-        notes: { user_id: user.id },
+        startAt,
+        notes: { user_id: user.id, kind },
       },
     );
   } catch (err) {
@@ -202,6 +206,39 @@ export async function verifyCheckoutCallback(params: {
   // The `.neq()` filter is the actual race-safety net (in case the webhook
   // lands between the read above and this write); shouldGrantProOnVerifiedCheckout
   // is just what decides whether to bother attempting the write at all.
+  // Was this checkout for a trial (first charge in the future)? Ask Razorpay
+  // rather than trusting the browser. If we can't tell, grant nothing here:
+  // the webhook is the fallback for both trials and paid plans.
+  let startAt: number | null = null;
+  let isTrial = false;
+  try {
+    if (!serverEnv.razorpayKeyId) throw new Error("no key");
+    const sub = await fetchSubscription(
+      serverEnv.razorpayKeyId,
+      serverEnv.razorpayKeySecret,
+      subscriptionId,
+    );
+    isTrial = sub.notes?.kind === "trial";
+    startAt = typeof sub.start_at === "number" ? sub.start_at : null;
+  } catch {
+    return { ok: true, data: { verified: true } };
+  }
+
+  if (isTrial) {
+    if (startAt && startAt * 1000 > Date.now()) {
+      const admin = createAdminClient();
+      await admin
+        .from("profiles")
+        .update({
+          subscription_tier: "trialing",
+          trial_ends_at: new Date(startAt * 1000).toISOString(),
+        })
+        .eq("user_id", user.id)
+        .is("trial_ends_at", null);
+    }
+    return { ok: true, data: { verified: true } };
+  }
+
   if (shouldGrantProOnVerifiedCheckout(profile.subscription_tier)) {
     const admin = createAdminClient();
     await admin
@@ -235,7 +272,9 @@ export async function cancelSubscription(): Promise<ActionResult<null>> {
     .select("subscription_tier, subscription_id")
     .maybeSingle();
 
-  if (profile?.subscription_tier !== "pro" || !profile.subscription_id) {
+  const tier = profile?.subscription_tier;
+  const onTrial = tier === "trialing";
+  if ((tier !== "pro" && !onTrial) || !profile?.subscription_id) {
     return actionError("No active subscription to cancel.");
   }
   if (!serverEnv.razorpayKeyId || !serverEnv.razorpayKeySecret) {
@@ -247,7 +286,9 @@ export async function cancelSubscription(): Promise<ActionResult<null>> {
       serverEnv.razorpayKeyId,
       serverEnv.razorpayKeySecret,
       profile.subscription_id,
-      true,
+      // A trial has not been charged yet, so there is no paid period to run
+      // out: cancel the mandate now. Access continues to the trial end date.
+      !onTrial,
     );
   } catch (err) {
     return actionError(

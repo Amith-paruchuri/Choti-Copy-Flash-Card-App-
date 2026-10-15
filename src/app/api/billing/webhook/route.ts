@@ -15,6 +15,7 @@ interface RazorpaySubscriptionEntity {
   id?: string;
   status?: string;
   current_end?: number; // unix seconds
+  start_at?: number; // unix seconds, first charge (future while on a trial)
   notes?: Record<string, unknown>;
 }
 interface RazorpayPaymentEntity {
@@ -33,10 +34,9 @@ interface RazorpayWebhookBody {
 const PRO_EVENTS = new Set(["subscription.activated", "subscription.charged"]);
 const PAST_DUE_EVENTS = new Set(["subscription.pending", "subscription.halted"]);
 const CANCEL_EVENTS = new Set(["subscription.cancelled", "subscription.completed"]);
-// subscription.authenticated is intentionally unmapped — it can fire for an
-// initial mandate authorization before the first real charge is confirmed,
-// so treating it as "pro" would risk granting access before a payment
-// actually succeeded. It's still recorded below for audit/idempotency.
+// subscription.authenticated never grants "pro" — it fires when a mandate is
+// authorised, before any charge. It only starts a TRIAL, and only when the
+// subscription was created with notes.kind = "trial" and a future start_at.
 
 const toIso = (unixSeconds: number | undefined): string | null =>
   typeof unixSeconds === "number" ? new Date(unixSeconds * 1000).toISOString() : null;
@@ -68,10 +68,13 @@ async function applyTierTransition(
     // payment entity happens to carry our own notes (not guaranteed).
     const userId = await resolveUserId(admin, payment?.notes?.user_id, undefined);
     if (!userId) return;
+    // Only a paying account can fall behind. A failed attempt to set up a
+    // trial or a first payment must not block the user from trying again.
     await admin
       .from("profiles")
       .update({ subscription_tier: "past_due" })
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .eq("subscription_tier", "pro");
     return;
   }
 
@@ -79,7 +82,24 @@ async function applyTierTransition(
   const userId = await resolveUserId(admin, sub.notes?.user_id, sub.id);
   if (!userId) return;
 
-  if (PRO_EVENTS.has(event)) {
+  if (
+    event === "subscription.authenticated" &&
+    sub.notes?.kind === "trial" &&
+    typeof sub.start_at === "number" &&
+    sub.start_at * 1000 > Date.now()
+  ) {
+    // Card/UPI mandate authorised for a trial: Pro-level access until the
+    // first charge date. Only ever sets a trial that has not been used.
+    await admin
+      .from("profiles")
+      .update({
+        subscription_tier: "trialing",
+        trial_ends_at: toIso(sub.start_at),
+        subscription_id: sub.id,
+      })
+      .eq("user_id", userId)
+      .is("trial_ends_at", null);
+  } else if (PRO_EVENTS.has(event)) {
     await admin
       .from("profiles")
       .update({

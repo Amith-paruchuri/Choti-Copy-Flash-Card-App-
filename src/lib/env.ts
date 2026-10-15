@@ -101,7 +101,7 @@ export const serverEnv = {
  * Read literally (not via the dynamic helper) so Next inlines it for the client.
  */
 export const TERMS_VERSION =
-  process.env.NEXT_PUBLIC_TERMS_VERSION || "2026-10-11";
+  process.env.NEXT_PUBLIC_TERMS_VERSION || "2026-10-15";
 
 export const siteUrl = (): string =>
   optional("NEXT_PUBLIC_SITE_URL", "http://localhost:3000");

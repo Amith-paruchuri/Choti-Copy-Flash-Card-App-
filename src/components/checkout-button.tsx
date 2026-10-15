@@ -77,10 +77,18 @@ function loadRazorpayScript(): Promise<void> {
 export function CheckoutButton({
   email,
   tier,
+  mode = "pro",
+  label,
+  className,
 }: {
   email?: string;
   tier: SubscriptionTier;
+  /** "trial" opens an autopay mandate with the first charge after the trial. */
+  mode?: "pro" | "trial";
+  label?: string;
+  className?: string;
 }) {
+  const doneTier: SubscriptionTier = mode === "trial" ? "trialing" : "pro";
   const router = useRouter();
   const [pending, start] = useTransition();
   const [status, setStatus] = useState<
@@ -102,9 +110,11 @@ export function CheckoutButton({
   // should only react to `tier` changing, not re-fire if `status` alone
   // changes while tier is already "pro".
   useEffect(() => {
-    if (tier === "pro" && status === "activating") {
+    if (tier === doneTier && status === "activating") {
       stopPolling();
-      toast.success("You're on Pro!");
+      toast.success(
+        mode === "trial" ? "Your free trial has started." : "You're on Pro!",
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tier]);
@@ -112,8 +122,8 @@ export function CheckoutButton({
   // Derived, not stored: once `tier` actually flips to "pro" the stale
   // "activating"/"timed-out" state should stop rendering immediately,
   // without a redundant setState inside the effect above.
-  const isActivating = status === "activating" && tier !== "pro";
-  const isTimedOut = status === "timed-out" && tier !== "pro";
+  const isActivating = status === "activating" && tier !== doneTier;
+  const isTimedOut = status === "timed-out" && tier !== doneTier;
 
   function startPolling() {
     pollCount.current = 0;
@@ -131,7 +141,7 @@ export function CheckoutButton({
   function run() {
     start(async () => {
       setStatus("idle");
-      const res = await startCheckout();
+      const res = await startCheckout(mode);
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -157,7 +167,10 @@ export function CheckoutButton({
         key: res.data.keyId,
         subscription_id: res.data.subscriptionId,
         name: "Choti Copy Pro",
-        description: "₹150/month",
+        description:
+          mode === "trial"
+            ? "15 days free, then ₹150/month"
+            : "₹150/month",
         prefill: email ? { email } : undefined,
         theme: { color: "#6a58e8" },
         handler: (response) => {
@@ -193,7 +206,11 @@ export function CheckoutButton({
     return (
       <div className="border-rule bg-secondary/60 space-y-1 rounded-lg border p-3 text-center text-sm">
         <p className="font-medium">
-          {isActivating ? "Activating your Pro plan…" : "Still processing…"}
+          {isActivating
+            ? mode === "trial"
+              ? "Starting your free trial…"
+              : "Activating your Pro plan…"
+            : "Still processing…"}
         </p>
         <p className="text-muted-foreground text-xs">
           {isActivating
@@ -206,8 +223,15 @@ export function CheckoutButton({
 
   return (
     <div className="space-y-1.5">
-      <Button onClick={run} disabled={pending} className="w-full">
-        {pending ? "One moment…" : "Upgrade to Pro — ₹150/month"}
+      <Button
+        onClick={run}
+        disabled={pending}
+        size="lg"
+        className={className ?? "w-full"}
+      >
+        {pending
+          ? "One moment…"
+          : (label ?? "Upgrade to Pro — ₹150/month")}
       </Button>
       {status === "cancelled" && (
         <p className="text-muted-foreground text-center text-xs">

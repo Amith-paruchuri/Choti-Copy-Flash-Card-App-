@@ -4,6 +4,8 @@ import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { FirstRun } from "@/components/first-run";
 import { QuickAddSheet } from "@/components/quick-add-sheet";
+import { canStartTrial } from "@/lib/billing/tier";
+import { getBillingProfile } from "@/lib/queries/account";
 import { listSubjects } from "@/lib/queries/subjects";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,7 +21,19 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   if (!user) redirect("/login");
 
-  const subjects = await listSubjects();
+  const [subjects, billing] = await Promise.all([
+    listSubjects(),
+    getBillingProfile(),
+  ]);
+  // Offer the plan choice in onboarding only to accounts that can still pick.
+  const plan =
+    billing.tier === "free" || canStartTrial(billing)
+      ? {
+          tier: billing.tier,
+          canTrial: canStartTrial(billing),
+          email: user.email ?? undefined,
+        }
+      : undefined;
 
   const name =
     (user.user_metadata?.full_name as string | undefined) ??
@@ -40,7 +54,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       </div>
       <QuickAddSheet subjects={subjects} />
       <BottomNav />
-      <FirstRun />
+      <FirstRun plan={plan} />
     </div>
   );
 }

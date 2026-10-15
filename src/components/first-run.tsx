@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
 
 import { Logo, MARK } from "@/components/logo";
+import { PlanPicker } from "@/components/plan-picker";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { SubscriptionTier } from "@/types/database";
 
 const SEEN_KEY = "choti:firstRun";
 
@@ -31,9 +33,17 @@ const STEPS = [
  * glow pulses, then a few onboarding cards. Shown once (localStorage), and
  * skipped to a static mark under prefers-reduced-motion.
  */
-export function FirstRun() {
+export function FirstRun({
+  plan,
+}: {
+  /** Pass for accounts that can still choose a plan; omit to skip that step. */
+  plan?: { tier: SubscriptionTier; canTrial: boolean; email?: string };
+}) {
   const [phase, setPhase] = useState<Phase | null>(null);
   const [step, setStep] = useState(0);
+  // Whether to include the plan step is decided once, at the start: choosing
+  // a plan changes the account, and the prop disappears once it is active.
+  const [offerPlan] = useState(!!plan);
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
@@ -77,8 +87,53 @@ export function FirstRun() {
   }
 
   // onboard
+  const infoSteps = STEPS.length;
+  const total = infoSteps + (offerPlan ? 1 : 0);
+  const onPlans = offerPlan && step === infoSteps;
+  const last = step === total - 1;
   const s = STEPS[step];
-  const last = step === STEPS.length - 1;
+
+  if (onPlans) {
+    const subscribed = !plan || plan.tier !== "free";
+    return (
+      <div className="bg-background/70 fixed inset-0 z-[100] grid place-items-center overflow-y-auto p-4 backdrop-blur-sm">
+        <div className="border-rule bg-card my-auto w-full max-w-md space-y-4 rounded-2xl border p-5 shadow-xl">
+          <div className="space-y-1">
+            <h2 className="font-display text-xl font-semibold tracking-tight">
+              {subscribed ? "You're all set" : "How do you want to start?"}
+            </h2>
+            <p className="text-muted-foreground text-sm">
+              {subscribed
+                ? "Your plan is active. Time to add your first card."
+                : "You can change this any time from Plans."}
+            </p>
+          </div>
+          {subscribed || !plan ? (
+            <Button className="w-full" size="lg" onClick={finish}>
+              Get started <Check className="size-4" />
+            </Button>
+          ) : (
+            <>
+              <PlanPicker
+                tier={plan.tier}
+                email={plan.email}
+                canTrial={plan.canTrial}
+                onChooseFree={finish}
+              />
+              <button
+                type="button"
+                onClick={finish}
+                className="text-muted-foreground hover:text-foreground mx-auto block text-sm transition"
+              >
+                Decide later
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-background/70 fixed inset-0 z-[100] grid place-items-center p-6 backdrop-blur-sm">
       <div className="border-rule bg-card w-full max-w-sm space-y-4 rounded-2xl border p-6 shadow-xl">
@@ -93,7 +148,7 @@ export function FirstRun() {
         </div>
         <div className="flex items-center justify-between gap-3 pt-1">
           <div className="flex gap-1.5">
-            {STEPS.map((_, i) => (
+            {Array.from({ length: total }).map((_, i) => (
               <span
                 key={i}
                 className={
@@ -108,7 +163,7 @@ export function FirstRun() {
             {!last && (
               <button
                 type="button"
-                onClick={finish}
+                onClick={() => (offerPlan ? setStep(infoSteps) : finish())}
                 className="text-muted-foreground hover:text-foreground text-sm transition"
               >
                 Skip

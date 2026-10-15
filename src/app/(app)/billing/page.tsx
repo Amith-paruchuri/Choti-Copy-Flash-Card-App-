@@ -1,41 +1,34 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { CalendarClock, ShieldCheck } from "lucide-react";
 
 import { CancelSubscriptionButton } from "@/components/cancel-subscription-button";
-import { CheckoutButton } from "@/components/checkout-button";
-import { StartTrialButton } from "@/components/start-trial-button";
+import { ProgressRing } from "@/components/motion/progress-ring";
+import { PlanPicker } from "@/components/plan-picker";
 import { Button } from "@/components/ui/button";
-import { TIER_LIMITS, type TierLimits } from "@/lib/billing/limits";
-import { canStartTrial, formatBillingDate } from "@/lib/billing/tier";
+import {
+  PRO_PRICE_RUPEES,
+  TRIAL_DAYS,
+} from "@/lib/billing/plan-copy";
+import {
+  canStartTrial,
+  formatBillingDate,
+  trialDaysRemaining,
+} from "@/lib/billing/tier";
 import { getBillingProfile } from "@/lib/queries/account";
 import { createClient } from "@/lib/supabase/server";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Plans" };
 
-/** Same for both plans — never gated. Listed on both cards so Pro visibly includes it too. */
-const UNLIMITED_FOR_EVERYONE = [
-  "Unlimited flashcards & subjects",
-  "Spaced repetition (FSRS) reviews",
-  "Full stats & history",
-  "Search and non-PDF/image imports",
-];
-
-const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
-
-/** Concrete numbers straight from limits.ts — never hand-typed, so this card can't drift from what's actually enforced. */
-function tierLines(limits: TierLimits): string[] {
-  return [
-    `${limits.aiCardsPerDay} AI-generated cards/day`,
-    `${limits.aiMnemonicsPerDay} AI mnemonics/day`,
-    `${limits.aiQuizSetsPerDay} AI quiz sets/day`,
-    limits.importsPerWeek === null
-      ? "No weekly cap on PDF/image imports"
-      : `${limits.importsPerWeek} PDF/image imports/week`,
-    `PDF/image imports up to ${mb(limits.importMaxBytes)} MB, ${limits.importMaxPages} pages`,
-    limits.processingLabel,
-  ];
+function StatusCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="rise lift border-highlight/40 bg-card space-y-4 rounded-2xl border p-5 shadow-[0_10px_40px_-16px_var(--color-highlight)]"
+      style={{ "--i": 1 } as React.CSSProperties}
+    >
+      {children}
+    </div>
+  );
 }
 
 export default async function BillingPage() {
@@ -44,121 +37,151 @@ export default async function BillingPage() {
     getBillingProfile(),
     supabase.auth.getUser(),
   ]);
-  const onFree = billing.tier === "free";
   const canTrial = canStartTrial(billing);
+  const email = userData.user?.email ?? undefined;
 
   const inGracePeriod =
     billing.rawTier === "canceled" &&
     !!billing.currentPeriodEnd &&
     new Date(billing.currentPeriodEnd).getTime() > new Date().getTime();
-  const periodEndCopy = billing.currentPeriodEnd
+  const periodEnd = billing.currentPeriodEnd
     ? formatBillingDate(billing.currentPeriodEnd)
     : null;
+  const trialEnd = billing.trialEndsAt
+    ? formatBillingDate(billing.trialEndsAt)
+    : null;
+  const daysLeft = trialDaysRemaining(billing.trialEndsAt);
+
+  const onPro = billing.rawTier === "pro";
+  // A trial with an autopay mandate attached (new flow) vs. one without
+  // (started before payment details were required).
+  const trialWithAutopay =
+    billing.tier === "trialing" &&
+    billing.rawTier === "trialing" &&
+    !!billing.subscriptionId;
+  const trialAutopayOff =
+    billing.tier === "trialing" && billing.rawTier === "canceled";
+  const showPicker = !(onPro || inGracePeriod || trialWithAutopay || trialAutopayOff);
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-6 px-4 py-8">
-      <header className="space-y-1 text-center">
-        <h1 className="font-display text-xl font-semibold tracking-tight">
-          Plans
+      <header
+        className="rise space-y-1 text-center"
+        style={{ "--i": 0 } as React.CSSProperties}
+      >
+        <h1 className="font-display text-2xl font-semibold tracking-tight">
+          {showPicker ? "Pick your plan" : "Your plan"}
         </h1>
         <p className="text-muted-foreground text-sm">
-          Everyone gets one 15-day Pro trial, no card needed, whenever
-          they want to start it.
+          {showPicker && canTrial
+            ? `Start with ${TRIAL_DAYS} days of Pro. Cancel before day ${TRIAL_DAYS} and you pay nothing.`
+            : showPicker
+              ? "Free is always available. Pro is ₹150 a month."
+              : "Manage billing and autopay here."}
         </p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div
-          className={cn(
-            "rise lift border-rule space-y-3 rounded-xl border p-4",
-            onFree && "ring-primary/30 ring-2",
-          )}
-          style={{ "--i": 0 } as React.CSSProperties}
-        >
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-semibold">Free</h2>
-            {onFree && (
-              <span className="bg-ink-tint text-ink rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                Current
-              </span>
-            )}
-          </div>
-          <p className="font-display text-2xl font-semibold">₹0</p>
-          <ul className="space-y-1.5 text-sm">
-            {[...UNLIMITED_FOR_EVERYONE, ...tierLines(TIER_LIMITS.free)].map(
-              (f) => (
-                <li key={f} className="flex gap-2">
-                  <Check className="text-sage mt-0.5 size-4 flex-none" />
-                  {f}
-                </li>
-              ),
-            )}
-          </ul>
+      {billing.rawTier === "past_due" && (
+        <p className="border-clay/30 bg-clay-tint text-clay rounded-xl border px-4 py-3 text-sm">
+          Your last payment didn&rsquo;t go through. Razorpay is retrying it
+          automatically. Contact support if this continues.
+        </p>
+      )}
+
+      {showPicker && (
+        <div className="rise" style={{ "--i": 1 } as React.CSSProperties}>
+          <PlanPicker tier={billing.tier} email={email} canTrial={canTrial} />
         </div>
+      )}
 
-        <div
-          className="rise lift border-highlight/40 bg-card space-y-3 rounded-xl border p-4 shadow-[0_10px_40px_-16px_var(--color-highlight)]"
-          style={{ "--i": 1 } as React.CSSProperties}
-        >
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-semibold">Pro</h2>
-            {(billing.rawTier === "pro" || inGracePeriod) && (
-              <span className="bg-highlight-tint text-ink rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                Current
-              </span>
-            )}
-          </div>
-          <p className="font-display text-2xl font-semibold">
-            ₹150<span className="text-muted-foreground ml-1 text-xs">/ month</span>
-          </p>
-          <ul className="space-y-1.5 text-sm">
-            {[...UNLIMITED_FOR_EVERYONE, ...tierLines(TIER_LIMITS.pro)].map(
-              (f) => (
-                <li key={f} className="flex gap-2">
-                  <Check className="text-highlight mt-0.5 size-4 flex-none" />
-                  {f}
-                </li>
-              ),
-            )}
-          </ul>
-
-          {billing.rawTier === "pro" ? (
-            <div className="space-y-2">
-              <p className="text-muted-foreground text-xs">
-                {periodEndCopy ? `Renews ${periodEndCopy}` : "Active"}
+      {onPro && (
+        <StatusCard>
+          <div className="flex items-center gap-3">
+            <span className="bg-highlight-tint text-ink grid size-11 place-items-center rounded-xl">
+              <ShieldCheck className="size-5" aria-hidden />
+            </span>
+            <div>
+              <h2 className="font-display text-lg font-semibold">
+                You&rsquo;re on Pro
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                ₹{PRO_PRICE_RUPEES}/month by autopay
+                {periodEnd ? ` · next charge ${periodEnd}` : ""}
               </p>
-              <CancelSubscriptionButton
-                currentPeriodEnd={billing.currentPeriodEnd}
-              />
             </div>
-          ) : inGracePeriod ? (
-            <p className="text-muted-foreground text-xs">
-              Canceled — Pro access continues until {periodEndCopy}.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {billing.rawTier === "past_due" && (
-                <p className="text-clay text-xs">
-                  Your last payment didn&rsquo;t go through — Razorpay is
-                  retrying it automatically.
-                </p>
-              )}
-              {canTrial && <StartTrialButton className="w-full" />}
-              <CheckoutButton
-                email={userData.user?.email ?? undefined}
-                tier={billing.tier}
-              />
+          </div>
+          <CancelSubscriptionButton currentPeriodEnd={billing.currentPeriodEnd} />
+        </StatusCard>
+      )}
+
+      {inGracePeriod && (
+        <StatusCard>
+          <div className="flex items-center gap-3">
+            <span className="bg-highlight-tint text-ink grid size-11 place-items-center rounded-xl">
+              <CalendarClock className="size-5" aria-hidden />
+            </span>
+            <div>
+              <h2 className="font-display text-lg font-semibold">
+                Autopay is off
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                Pro access continues until {periodEnd}. No further charges.
+              </p>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </StatusCard>
+      )}
+
+      {trialWithAutopay && (
+        <StatusCard>
+          <div className="flex items-center gap-4">
+            <ProgressRing
+              value={Math.max(0, TRIAL_DAYS - (daysLeft ?? 0))}
+              max={TRIAL_DAYS}
+              size={64}
+              className="text-highlight flex-none"
+            />
+            <div className="min-w-0">
+              <h2 className="font-display text-lg font-semibold">
+                Free trial · {daysLeft ?? 0} day{daysLeft === 1 ? "" : "s"} left
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                ₹{PRO_PRICE_RUPEES} will be charged on {trialEnd}, then every
+                month, unless you turn autopay off.
+              </p>
+            </div>
+          </div>
+          <CancelSubscriptionButton
+            trial
+            currentPeriodEnd={billing.trialEndsAt}
+          />
+        </StatusCard>
+      )}
+
+      {trialAutopayOff && (
+        <StatusCard>
+          <div className="flex items-center gap-3">
+            <span className="bg-highlight-tint text-ink grid size-11 place-items-center rounded-xl">
+              <CalendarClock className="size-5" aria-hidden />
+            </span>
+            <div>
+              <h2 className="font-display text-lg font-semibold">
+                Trial running, autopay is off
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                Pro features until {trialEnd}. You won&rsquo;t be charged.
+              </p>
+            </div>
+          </div>
+        </StatusCard>
+      )}
 
       <p className="text-muted-foreground text-center text-xs">
         Billing is handled by Razorpay. See the{" "}
         <Link href="/legal/terms" className="underline">
           Terms
         </Link>{" "}
-        for subscription conditions.
+        for subscription and refund conditions.
       </p>
 
       <div className="text-center">

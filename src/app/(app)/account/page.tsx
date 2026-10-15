@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 
 import { ProfilePanel } from "@/components/profile-panel";
-import { StartTrialButton } from "@/components/start-trial-button";
 import { StudyPacingForm } from "@/components/study-pacing-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UsageMeter, fmtBytes } from "@/components/usage-meter";
@@ -195,7 +194,11 @@ export default async function AccountPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {canTrial && <StartTrialButton />}
+            {canTrial && (
+              <Button asChild size="sm">
+                <Link href="/billing">Start free trial</Link>
+              </Button>
+            )}
             <Button asChild size="sm" variant="outline">
               <Link href="/billing">
                 {tier === "free" ? "See plans" : "Manage plan"}

@@ -17,6 +17,8 @@ export interface RazorpaySubscription {
   plan_id: string;
   customer_id: string | null;
   status: string;
+  /** unix seconds of the first charge; in the future for a trial */
+  start_at?: number | null;
   current_start: number | null;
   current_end: number | null;
   short_url: string;
@@ -87,6 +89,8 @@ export async function createSubscription(
   opts: {
     planId: string;
     totalCount: number;
+    /** Unix seconds. Set in the future to delay the first charge (free trial). */
+    startAt?: number;
     notes?: Record<string, string>;
   },
 ): Promise<RazorpaySubscription> {
@@ -99,8 +103,22 @@ export async function createSubscription(
       plan_id: opts.planId,
       total_count: opts.totalCount,
       customer_notify: 1,
+      ...(opts.startAt ? { start_at: opts.startAt } : {}),
       notes: opts.notes,
     },
+  );
+}
+
+export async function fetchSubscription(
+  keyId: string,
+  keySecret: string,
+  subscriptionId: string,
+): Promise<RazorpaySubscription> {
+  return request<RazorpaySubscription>(
+    keyId,
+    keySecret,
+    "GET",
+    `/subscriptions/${encodeURIComponent(subscriptionId)}`,
   );
 }
 
