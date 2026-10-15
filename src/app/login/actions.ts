@@ -94,7 +94,19 @@ export async function signInWithPassword(
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error) return { error: "Wrong email or password." };
+  if (error) {
+    // Signed up but never entered the emailed code: the address is unproven,
+    // so send a fresh code and open the PIN step instead of a vague error.
+    if (error.code === "email_not_confirmed") {
+      await supabase.auth.resend({ type: "signup", email: parsed.data.email });
+      return {
+        message:
+          "Your email isn't verified yet. We sent a new 6-digit code, enter it to continue.",
+        verifyEmail: parsed.data.email,
+      };
+    }
+    return { error: "Wrong email or password." };
+  }
 
   redirect(safeNext(formData.get("next")));
 }
