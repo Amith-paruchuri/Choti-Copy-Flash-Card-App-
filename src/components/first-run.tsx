@@ -208,7 +208,11 @@ function Mark({
   }
 
   return (
-    <svg viewBox={MARK.viewBox} className={cn("h-44 w-44", className)} aria-label="Choti Copy">
+    <svg
+      viewBox={MARK.viewBox}
+      className={cn("h-44 w-44 overflow-visible", className)}
+      aria-label="Choti Copy"
+    >
       <circle
         cx="30"
         cy="32"

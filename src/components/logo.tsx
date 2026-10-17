@@ -32,7 +32,7 @@ export function Logo({
       viewBox={MARK.viewBox}
       role="img"
       aria-label={title}
-      className={cn("block", className)}
+      className={cn("block overflow-visible", className)}
     >
       <title>{title}</title>
 
